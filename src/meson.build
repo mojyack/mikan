@@ -8,7 +8,7 @@ mikan_files = files(
 )
 
 config_data = configuration_data()
-config_data.set('dictionary_path', get_option('dictionary_path'))
+config_data.set('dictionary_path', get_option('prefix') / get_option('dictionary_path'))
 configure_file(input : 'config.h.in',
                output : 'config.h',
                configuration : config_data)
