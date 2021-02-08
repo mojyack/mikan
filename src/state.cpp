@@ -1,4 +1,3 @@
-#include <clocale>
 #include <fcitx-utils/capabilityflags.h>
 #include <fcitx-utils/cutf8.h>
 #include <fcitx-utils/keysym.h>
@@ -403,7 +402,9 @@ bool MikanState::handle_candidates(const fcitx::KeyEvent& event) {
     auto& candidates = phrase.candidates;
     if(!candidates.is_initialized()) {
         std::lock_guard<std::mutex> lock(share.primary_vocabulary.mutex);
-        candidates = Candidates({share.primary_vocabulary.data, share.additional_vocabulary}, phrase.raw, phrase.translation);
+        std::vector<MeCabModel*> dic = {share.primary_vocabulary.data};
+        std::copy(share.additional_vocabularies.begin(), share.additional_vocabularies.end(), std::back_inserter(dic));
+        candidates = Candidates(dic, phrase.raw, phrase.translation);
     }
     if(!candidates.has_candidate()) {
         return true;

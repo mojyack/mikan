@@ -54,7 +54,7 @@ class Share {
     int                      candidate_page_size;
     size_t                   auto_commit_threshold;
     SafeVar<MeCabModel*>     primary_vocabulary    = nullptr;
-    MeCabModel*              additional_vocabulary = nullptr;
+    std::vector<MeCabModel*> additional_vocabularies;
     KeyConfig                key_config;
 };
 

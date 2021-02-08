@@ -227,7 +227,7 @@ bool MikanEngine::compile_user_dictionary() const {
             std::copy(hists.begin(), hists.end(), std::back_inserter(to_compile));
         }
         std::copy(histories.data.begin(), histories.data.end(), std::back_inserter(to_compile));
-        std::ofstream        file(csv);
+        std::ofstream file(csv);
         for(const auto& l : to_compile) {
             file << l.raw << ",0,0," << std::to_string(l.cost) << "," << l.translation << std::endl;
         }
@@ -290,10 +290,24 @@ MikanEngine::MikanEngine(fcitx::Instance* instance) : instance(instance),
     if(!load_configuration()) {
         throw std::runtime_error("failed to load configuration.");
     }
-    auto system_dictionaries_path = std::string(DICTIONARY_PATH);
-    system_dictionary_path        = system_dictionaries_path + "/system";
-    additional_dictionary_path    = system_dictionaries_path + "/additional";
-    auto cache_dir                = get_user_cache_dir();
+    for(const auto& entry : std::filesystem::directory_iterator(DICTIONARY_PATH)) {
+        if(entry.path().filename() == "system") {
+            system_dictionary_path = entry.path().string();
+        } else {
+            MeCabModel* new_dic;
+            try {
+                new_dic = new MeCabModel(entry.path().string().data());
+            } catch(const std::runtime_error&) {
+                FCITX_WARN() << "failed to load addtional dictionary. " << entry.path();
+                continue;
+            }
+            share.additional_vocabularies.emplace_back(new_dic);
+        }
+    }
+    if(system_dictionary_path.empty()) {
+        throw std::runtime_error("failed to find system dictionary.");
+    }
+    auto cache_dir             = get_user_cache_dir();
     if(!std::filesystem::is_directory(cache_dir)) {
         std::filesystem::create_directories(cache_dir);
     }
@@ -303,7 +317,6 @@ MikanEngine::MikanEngine(fcitx::Instance* instance) : instance(instance),
     if(compiler_path.has_value()) {
         dictionary_compiler_path = compiler_path.value() + "/mecab-dict-index";
     }
-    share.additional_vocabulary = new MeCabModel(additional_dictionary_path.data());
 
     histories.data = load_histories(history_file_path.data(), true);
     compile_user_dictionary();
@@ -361,7 +374,9 @@ MikanEngine::~MikanEngine() {
     dictionary_update_event.wakeup();
     dictionary_updater.join();
     delete share.primary_vocabulary.data;
-    delete share.additional_vocabulary;
+    for(auto d : share.additional_vocabularies) {
+        delete d;
+    }
     save_hisotry();
 }
 

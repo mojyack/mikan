@@ -20,7 +20,6 @@ class MikanEngine final : public fcitx::InputMethodEngine {
     Share                         share;
 
     std::string                   system_dictionary_path;
-    std::string                   additional_dictionary_path;
     std::string                   history_file_path;
     std::string                   history_dictionary_path;
     std::string                   dictionary_compiler_path;
