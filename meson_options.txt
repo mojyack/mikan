@@ -1,0 +1,1 @@
+option('dictionary_path', type : 'string', value : 'share/mikan-im/dic', description : 'path to mikan dictionaries.')
