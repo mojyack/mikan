@@ -1,7 +1,7 @@
 #pragma once
+#include <optional>
 #include <string>
 #include <vector>
-#include <optional>
 
 std::string                get_user_config_dir();
 std::string                get_user_cache_dir();

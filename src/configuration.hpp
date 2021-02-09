@@ -41,7 +41,7 @@ struct KeyConfig {
     }
     bool match(const std::vector<Actions>& actions, const fcitx::KeyEvent& event) {
         for(auto a : actions) {
-            if(match(a, event)) { 
+            if(match(a, event)) {
                 return true;
             }
         }

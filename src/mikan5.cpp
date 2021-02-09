@@ -167,7 +167,7 @@ bool MikanEngine::load_configuration() {
 }
 bool MikanEngine::add_history(const DictionaryWords& words) {
     constexpr int INITIAL_COST     = 0;
-    constexpr int COST_INCRIMENTAL = 50;
+    constexpr int COST_INCREMENTAL = 50;
 
     bool history_not_changed = true;
     for(const auto& w : words) {
@@ -193,7 +193,7 @@ bool MikanEngine::add_history(const DictionaryWords& words) {
         if(!duplicates.empty()) {
             word_not_changed = false;
             for(auto d : duplicates) {
-                d->cost += COST_INCRIMENTAL;
+                d->cost += COST_INCREMENTAL;
             }
         }
         if(new_word) {
@@ -307,7 +307,7 @@ MikanEngine::MikanEngine(fcitx::Instance* instance) : instance(instance),
     if(system_dictionary_path.empty()) {
         throw std::runtime_error("failed to find system dictionary.");
     }
-    auto cache_dir             = get_user_cache_dir();
+    auto cache_dir = get_user_cache_dir();
     if(!std::filesystem::is_directory(cache_dir)) {
         std::filesystem::create_directories(cache_dir);
     }

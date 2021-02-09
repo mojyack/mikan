@@ -17,7 +17,7 @@ std::string get_xdg_path(const char* xdg_env_name, const char* fallback_dir_name
     ret.append("mikan/");
     return ret;
 }
-}
+} // namespace
 std::string get_user_config_dir() {
     return get_xdg_path("XDG_CONFIG_HOME", ".config");
 }
@@ -25,16 +25,16 @@ std::string get_user_cache_dir() {
     return get_xdg_path("XDG_CACHE_HOME", ".cache");
 }
 std::optional<std::string> get_dictionary_compiler_path() {
-    constexpr const char* COMMAND = "mecab-config --libexecdir";
-    constexpr size_t      BUFFER_LEN = 128;
+    constexpr const char*        COMMAND    = "mecab-config --libexecdir";
+    constexpr size_t             BUFFER_LEN = 128;
     std::array<char, BUFFER_LEN> buffer;
-    std::string result;
+    std::string                  result;
 
     FILE* pipe = popen(COMMAND, "r");
-    if (!pipe) {
+    if(!pipe) {
         return std::nullopt;
     }
-    while (fgets(buffer.data(), BUFFER_LEN, pipe) != NULL) {
+    while(fgets(buffer.data(), BUFFER_LEN, pipe) != NULL) {
         result += buffer.data();
     }
     if(!result.empty() && result.back() == '\n') {

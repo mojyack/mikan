@@ -1,6 +1,6 @@
+#include <filesystem>
 #include <stdexcept>
 #include <string>
-#include <filesystem>
 
 #include "mecab-model.hpp"
 
@@ -11,7 +11,7 @@ MeCabModel::MeCabModel(const char* dictionary, const char* user_dictionary) {
         dict_path += " -u ";
         dict_path += user_dictionary;
     }
-    model   = MeCab::createModel(dict_path.data());
+    model = MeCab::createModel(dict_path.data());
     if(model == nullptr) {
         throw std::runtime_error("failed to load system dictionary.");
     }

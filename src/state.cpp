@@ -402,7 +402,7 @@ bool MikanState::handle_candidates(const fcitx::KeyEvent& event) {
     auto& candidates = phrase.candidates;
     if(!candidates.is_initialized()) {
         std::lock_guard<std::mutex> lock(share.primary_vocabulary.mutex);
-        std::vector<MeCabModel*> dic = {share.primary_vocabulary.data};
+        std::vector<MeCabModel*>    dic = {share.primary_vocabulary.data};
         std::copy(share.additional_vocabularies.begin(), share.additional_vocabularies.end(), std::back_inserter(dic));
         candidates = Candidates(dic, phrase.raw, phrase.translation);
     }
