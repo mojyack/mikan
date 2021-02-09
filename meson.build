@@ -1,5 +1,5 @@
-project('fcitx-mikan', 'cpp', default_options : ['c_std=c2x', 'cpp_std=c++2a'])
-
+project('fcitx5-mikan', 'cpp', version : '1.0', license : 'MIT', default_options : ['c_std=c2x', 'cpp_std=c++2a'])
+        
 subdir('src')
 
 fcitx_dep = [
