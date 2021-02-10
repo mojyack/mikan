@@ -7,6 +7,7 @@
 
 #include "state.hpp"
 #include "type.hpp"
+#include "phrase.hpp"
 
 class MikanContext;
 class History;

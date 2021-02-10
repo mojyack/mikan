@@ -5,6 +5,7 @@ mikan_files = files(
     'mecab-model.cpp',
     'romaji-table.cpp',
     'state.cpp',
+    'phrase.cpp',
 )
 
 config_data = configuration_data()

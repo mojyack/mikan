@@ -57,16 +57,3 @@ class Share {
     std::vector<MeCabModel*> additional_vocabularies;
     KeyConfig                key_config;
 };
-
-class Phrase {
-  public:
-    enum class ProtectionLevel {
-        NONE,
-        PRESERVE_SEPARATION,
-        PRESERVE_TRANSLATION,
-    };
-    std::string     raw;
-    std::string     translation;
-    ProtectionLevel protection;
-    Candidates      candidates;
-};

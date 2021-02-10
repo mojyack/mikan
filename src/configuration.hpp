@@ -8,6 +8,8 @@
 
 enum class Actions : size_t {
     BACKSPACE = 0,
+    REINTERPRET_NEXT,
+    REINTERPRET_PREV,
     CANDIDATE_NEXT,
     CANDIDATE_PREV,
     CANDIDATE_PAGE_NEXT,

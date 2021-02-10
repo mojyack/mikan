@@ -15,6 +15,7 @@
 #include <vector>
 
 #include <bits/stdint-uintn.h>
+#include <fcitx-utils/key.h>
 #include <fcitx-utils/keysym.h>
 #include <fcitx-utils/keysymgen.h>
 #include <fcitx-utils/log.h>
@@ -354,7 +355,9 @@ MikanEngine::MikanEngine(fcitx::Instance* instance) : instance(instance),
 
     share.key_config.keys.resize(static_cast<size_t>(Actions::ACTIONS_LIMIT));
     share.key_config[Actions::BACKSPACE]            = {{FcitxKey_BackSpace}};
-    share.key_config[Actions::CANDIDATE_NEXT]       = {{FcitxKey_space}, {FcitxKey_Down}, {FcitxKey_J, fcitx::KeyState::Ctrl}};
+    share.key_config[Actions::REINTERPRET_NEXT]     = {{FcitxKey_space}};
+    share.key_config[Actions::REINTERPRET_PREV]     = {{FcitxKey_space, fcitx::KeyState::Shift}};
+    share.key_config[Actions::CANDIDATE_NEXT]       = {{FcitxKey_Down}, {FcitxKey_J, fcitx::KeyState::Ctrl}};
     share.key_config[Actions::CANDIDATE_PREV]       = {{FcitxKey_Up}, {FcitxKey_K, fcitx::KeyState::Ctrl}};
     share.key_config[Actions::CANDIDATE_PAGE_NEXT]  = {{FcitxKey_Left}};
     share.key_config[Actions::CANDIDATE_PAGE_PREV]  = {{FcitxKey_Right}};

@@ -8,29 +8,43 @@
 #include <fcitx-utils/keysymgen.h>
 #include <fcitx/candidatelist.h>
 
-class MeCabModel;
 class Candidates {
-  private:
-    bool                     initialized = false;
-    std::optional<uint64_t>  index;
-    std::vector<std::string> data;
+  protected:
+    bool                    initialized = false;
+    std::optional<uint64_t> index;
+
+    virtual void clear_data() = 0;
 
   public:
-    void                            move_index(int val);
-    void                            set_index(uint64_t val);
-    std::optional<uint64_t>         get_index() const noexcept;
-    std::string                     get_current() const;
-    const std::vector<std::string>& get_data_ref() const noexcept;
-    size_t                          get_data_size() const noexcept;
-    bool                            is_initialized() const noexcept;
-    bool                            has_candidate() const noexcept;
-    void                            clear();
-    const std::string               operator[](size_t index) const;
+    virtual size_t                   get_data_size() const noexcept = 0;
+    void                             move_index(int val);
+    void                             set_index(uint64_t val);
+    std::optional<uint64_t>          get_index() const noexcept;
+    bool                             is_initialized() const noexcept;
+    bool                             has_candidate() const noexcept;
+    virtual void                     clear();
+    virtual std::vector<std::string> get_labels() const noexcept = 0;
     Candidates() {}
-    Candidates(const std::vector<MeCabModel*>& dictionaries, const std::string& phrase, const std::string& first_candidate = std::string());
+    virtual ~Candidates() {}
 };
 
-class Phrase;
+class MeCabModel;
+class PhraseCandidates : public Candidates {
+  private:
+    std::vector<std::string> data;
+
+    void clear_data() override;
+
+  public:
+    size_t                          get_data_size() const noexcept override;
+    const std::vector<std::string>& get_data_ref() const noexcept;
+    std::string                     get_current() const;
+    std::vector<std::string>        get_labels() const noexcept override;
+    const std::string               operator[](size_t index) const;
+    PhraseCandidates(){};
+    PhraseCandidates(const std::vector<MeCabModel*>& dictionaries, const std::string& phrase, const std::string& first_candidate = std::string());
+};
+
 class CandidateWord : public fcitx::CandidateWord {
   private:
   public:
@@ -43,15 +57,15 @@ class CandidateList : public fcitx::CandidateList,
                       public fcitx::PageableCandidateList,
                       public fcitx::CursorMovableCandidateList {
   private:
-    Phrase* const phrase;
-    const size_t  page_size;
-    size_t        index_to_local(size_t idx) const noexcept;
-    size_t        index_to_global(size_t idx) const noexcept;
+    Candidates* const data;
+    const size_t      page_size;
+    size_t            index_to_local(size_t idx) const noexcept;
+    size_t            index_to_global(size_t idx) const noexcept;
 
     std::vector<std::unique_ptr<CandidateWord>> words;
 
   public:
-    bool is_phrase(const Phrase* phrase) const noexcept;
+    bool match(Candidates* const data) const noexcept;
 
     // CandidateList
     const fcitx::Text&   label(int idx) const override;
@@ -77,5 +91,5 @@ class CandidateList : public fcitx::CandidateList,
     void prevCandidate() override;
     void nextCandidate() override;
 
-    CandidateList(Phrase* const phrase, const size_t page_size);
+    CandidateList(Candidates* const data, const size_t page_size);
 };
