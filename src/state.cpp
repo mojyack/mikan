@@ -8,6 +8,7 @@
 #include <fcitx/inputpanel.h>
 #include <fcitx/surroundingtext.h>
 #include <mecab.h>
+#include <stdexcept>
 
 #include "candidate.hpp"
 #include "configuration.hpp"
@@ -403,8 +404,15 @@ bool MikanState::handle_delete(const fcitx::KeyEvent& event) {
             // disassembly the kana to romaji and pop back.
             char kana8[FCITX_UTF8_MAX_LENGTH] = {};
             fcitx_ucs4_to_utf8(*kana, kana8);
-            to_kana = kana_to_romaji(kana8);
-            pop_back_u8(to_kana);
+            bool success = true;
+            try {
+                to_kana = kana_to_romaji(kana8);
+            } catch(const std::runtime_error&) {
+                success = false;
+            }
+            if(success) {
+                pop_back_u8(to_kana);
+            }
 
             // move cursor.
             cursor -= fcitx_ucs4_char_len(*kana);
