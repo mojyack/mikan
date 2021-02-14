@@ -4,6 +4,7 @@
 #include <fcitx/inputcontextproperty.h>
 
 #include "phrase.hpp"
+#include "share.hpp"
 #include "type.hpp"
 
 class MikanEngine;
@@ -16,13 +17,16 @@ class MikanState final : public fcitx::InputContextProperty {
     Phrases*    phrases = nullptr;
     size_t      cursor; // in bytes
     std::string to_kana;
-    bool        move_back_on_input = false;
+    bool        translation_changed = false;
 
     SentenceCandidates sentences;
     bool               sentence_changed = false;
 
     void        commit_phrase(const Phrase* phrase);
     void        commit_all_phrases();
+    void        make_branch_sentence();
+    bool        merge_branch_sentences();
+    void        shrink_sentences(bool reserve_one = false);
     bool        delete_surrounding_text();
     void        calc_phrase_in_cursor(Phrase** phrase, size_t* cursor_in_phrase = nullptr) const;
     void        move_cursor_back();

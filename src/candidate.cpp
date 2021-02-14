@@ -1,3 +1,5 @@
+#include <algorithm>
+
 #include <fcitx/text.h>
 #include <mecab.h>
 
@@ -7,80 +9,105 @@
 #include "type.hpp"
 
 void Candidates::move_index(int val) {
-    if(!initialized || !index) {
-        return;
-    }
-    index = (index.value() + val) % get_data_size();
+    index = (index + val) % get_data_size();
 }
 void Candidates::set_index(uint64_t val) {
-    if(!initialized || !index) {
-        return;
-    }
     index = val % get_data_size();
 }
-std::optional<uint64_t> Candidates::get_index() const noexcept {
+uint64_t Candidates::get_index() const noexcept {
     return index;
 }
-bool Candidates::is_initialized() const noexcept {
-    return initialized;
-}
-bool Candidates::has_candidate() const noexcept {
-    return index.has_value();
-}
-void Candidates::clear() {
-    initialized = false;
-    index.reset();
-    clear_data();
-}
 
-void PhraseCandidates::clear_data() {
-    data.clear();
-}
-std::string PhraseCandidates::get_current() const {
-    if(!initialized || !index) {
-        return std::string();
+const MeCabWord& PhraseCandidates::get_raw() const {
+    if(data.size() < 2) {
+        return get_translated();
+    } else {
+        return data[1];
     }
-    return data[index.value()];
 }
-const std::vector<std::string>& PhraseCandidates::get_data_ref() const noexcept {
+const MeCabWord& PhraseCandidates::get_translated() const {
+    return data[index];
+}
+std::string& PhraseCandidates::get_mutable() {
+    return data[data.size() < 2 ? 0 : 1].get_mutable();
+}
+void PhraseCandidates::override_translated(const MeCabWord& translated) {
+    data[0] = translated;
+}
+void PhraseCandidates::override_translated(MeCabWord&& translated) {
+    data[0] = std::move(translated);
+}
+bool PhraseCandidates::has_candidates() const noexcept {
+    return data.size() > 1;
+}
+bool PhraseCandidates::is_initialized() const noexcept {
+    return is_initialized_with_dictionaries;
+}
+const MeCabWord& PhraseCandidates::get_current() const {
+    return data[index];
+}
+const MeCabWords& PhraseCandidates::get_data_ref() const noexcept {
     return data;
 }
 size_t PhraseCandidates::get_data_size() const noexcept {
     return data.size();
 }
 std::vector<std::string> PhraseCandidates::get_labels() const noexcept {
-    return data;
+    std::vector<std::string> labels;
+    for(auto& d : data) {
+        labels.emplace_back(d.get_feature());
+    }
+    return labels;
 }
-const std::string PhraseCandidates::operator[](size_t index) const {
+const MeCabWord& PhraseCandidates::operator[](size_t index) const {
     return data[index];
 }
-PhraseCandidates::PhraseCandidates(const std::vector<MeCabModel*>& dictionaries, const std::string& phrase, const std::string& first_candidate) {
-    if(!first_candidate.empty()) {
-        emplace_unique(data, first_candidate); // first candidate is translated phrase.
-    }
-    emplace_unique(data, phrase); // second candidate is hiragana.
+PhraseCandidates::PhraseCandidates(MeCabWord raw) {
+    data  = MeCabWords{std::move(raw)};
+    index = 0;
+}
+PhraseCandidates::PhraseCandidates(MeCabWord raw, MeCabWord translated) {
+    data  = MeCabWords{std::move(translated), std::move(raw)};
+    index = 0;
+}
+PhraseCandidates::PhraseCandidates(const std::vector<MeCabModel*>& dictionaries, const std::string& raw, bool best_only) {
+    const auto predicate_same_feature = [](const MeCabWord& elm, const MeCabWord& o) -> bool {
+        return elm.get_feature() == o.get_feature();
+    };
 
     for(auto d : dictionaries) {
         auto& lattice = *d->lattice;
-        lattice.set_request_type(MECAB_NBEST);
-        lattice.set_sentence(phrase.data());
-        lattice.set_feature_constraint(0, phrase.size(), "*");
+        lattice.set_request_type(best_only ? MECAB_ONE_BEST : MECAB_NBEST);
+        lattice.set_sentence(raw.data());
+        lattice.set_feature_constraint(0, raw.size(), "*");
         d->tagger->parse(&lattice);
         while(1) {
-            std::string cand = lattice.toString();
-            emplace_unique(data, cand);
+            for(const auto* node = lattice.bos_node(); node; node = node->next) {
+                if(node->stat != MECAB_NOR_NODE) {
+                    continue;
+                }
+                emplace_unique(data, MeCabWord(node->feature, node->rcAttr, node->lcAttr, node->wcost, node->cost, d->is_system_dictionary), predicate_same_feature);
+            }
             if(!lattice.next()) {
                 break;
             }
         }
+        lattice.clear();
+    }
 
-        lattice.set_request_type(MECAB_ONE_BEST);
-        d->lattice->clear();
+    // second candidate is hiragana.
+    MeCabWord hiragana;
+    if(auto p = std::find_if(data.begin(), data.end(), [&raw](const MeCabWord& o) {
+           return o.get_feature() == raw;
+       }); p != data.end()) {
+        hiragana = std::move(*p);
+        data.erase(p);
+    } else {
+        hiragana = MeCabWord(raw);
     }
-    if(!data.empty()) {
-        index = 0;
-    }
-    initialized = true;
+    data.insert(data.begin() + (data.empty() ? 0 : 1), std::move(hiragana));
+    index                            = 0;
+    is_initialized_with_dictionaries = true;
 }
 
 void CandidateWord::select(fcitx::InputContext* inputContext) const {
@@ -105,7 +132,7 @@ const CandidateWord& CandidateList::candidate(int idx) const {
     return *words[index_to_global(idx)];
 }
 int CandidateList::cursorIndex() const {
-    return index_to_local(data->get_index().value());
+    return index_to_local(data->get_index());
 }
 int CandidateList::size() const {
     auto size   = data->get_data_size();
@@ -143,7 +170,7 @@ int CandidateList::totalPages() const {
     return size / page_size + 1;
 }
 int CandidateList::currentPage() const {
-    return data->get_index().value() / page_size;
+    return data->get_index() / page_size;
 }
 void CandidateList::setPage(int page) {
     data->set_index(page * page_size);

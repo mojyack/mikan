@@ -9,8 +9,8 @@ struct RomajiKana {
     const char*          refill = nullptr;
 };
 struct HiraKata {
-    const char32_t hiragana;
-    const char*    katakana;
+    const std::u32string hiragana;
+    const char*          katakana;
 };
 extern const RomajiKana romaji_table[];
 extern const uint64_t   romaji_table_limit;

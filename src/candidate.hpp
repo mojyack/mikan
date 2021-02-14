@@ -8,21 +8,17 @@
 #include <fcitx-utils/keysymgen.h>
 #include <fcitx/candidatelist.h>
 
+#include "type.hpp"
+
 class Candidates {
   protected:
-    bool                    initialized = false;
-    std::optional<uint64_t> index;
-
-    virtual void clear_data() = 0;
+    uint64_t index;
 
   public:
     virtual size_t                   get_data_size() const noexcept = 0;
     void                             move_index(int val);
     void                             set_index(uint64_t val);
-    std::optional<uint64_t>          get_index() const noexcept;
-    bool                             is_initialized() const noexcept;
-    bool                             has_candidate() const noexcept;
-    virtual void                     clear();
+    uint64_t                         get_index() const noexcept;
     virtual std::vector<std::string> get_labels() const noexcept = 0;
     Candidates() {}
     virtual ~Candidates() {}
@@ -31,18 +27,26 @@ class Candidates {
 class MeCabModel;
 class PhraseCandidates : public Candidates {
   private:
-    std::vector<std::string> data;
-
-    void clear_data() override;
+    MeCabWords data;
+    bool is_initialized_with_dictionaries = false;
 
   public:
-    size_t                          get_data_size() const noexcept override;
-    const std::vector<std::string>& get_data_ref() const noexcept;
-    std::string                     get_current() const;
-    std::vector<std::string>        get_labels() const noexcept override;
-    const std::string               operator[](size_t index) const;
-    PhraseCandidates(){};
-    PhraseCandidates(const std::vector<MeCabModel*>& dictionaries, const std::string& phrase, const std::string& first_candidate = std::string());
+    const MeCabWord&         get_raw() const;
+    const MeCabWord&         get_translated() const;
+    std::string&             get_mutable();
+    void                     override_translated(const MeCabWord& translated);
+    void                     override_translated(MeCabWord&& translated);
+    bool                     is_initialized() const noexcept;
+    bool                     has_candidates() const noexcept;
+    size_t                   get_data_size() const noexcept override;
+    const MeCabWords&        get_data_ref() const noexcept;
+    const MeCabWord&         get_current() const;
+    std::vector<std::string> get_labels() const noexcept override;
+    const MeCabWord&         operator[](size_t index) const;
+    PhraseCandidates() {};
+    PhraseCandidates(MeCabWord raw);
+    PhraseCandidates(MeCabWord raw, MeCabWord translated);
+    PhraseCandidates(const std::vector<MeCabModel*>& dictionaries, const std::string& raw, bool best_only);
 };
 
 class CandidateWord : public fcitx::CandidateWord {

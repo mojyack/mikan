@@ -1,4 +1,7 @@
+#include <cstddef>
 #include <mutex>
+#include <stdexcept>
+#include <string>
 
 #include <fcitx-utils/cutf8.h>
 #include <fcitx-utils/keysym.h>
@@ -8,7 +11,6 @@
 #include <fcitx/inputpanel.h>
 #include <fcitx/surroundingtext.h>
 #include <mecab.h>
-#include <stdexcept>
 
 #include "candidate.hpp"
 #include "configuration.hpp"
@@ -29,15 +31,25 @@ bool is_candidate_list_for(fcitx::InputContext& context, void* ptr) {
     auto sp = context.inputPanel().candidateList();
     return sp && !(sp.get() != ptr);
 }
+bool begin_with(const std::u32string& str, const std::u32string& key) {
+    if(str.size() < key.size()) {
+        return false;
+    }
+    for(size_t i = 0; i < key.size(); ++i) {
+        if(str[i] != key[i]) {
+            return false;
+        }
+    }
+    return true;
+}
 } // namespace
 
 void MikanState::commit_phrase(const Phrase* phrase) {
-    context.commitString(phrase->translation);
-    if(phrase->save_to_history) {
-        engine.request_update_dictionary(phrase->raw.data(), phrase->translation.data());
-    }
+    const MeCabWord& translated = phrase->get_translated();
+    context.commitString(translated.get_feature());
 }
 void MikanState::commit_all_phrases() {
+    merge_branch_sentences();
     Phrase* current;
     calc_phrase_in_cursor(&current);
     for(const auto& p : *phrases) {
@@ -47,6 +59,41 @@ void MikanState::commit_all_phrases() {
             to_kana.clear();
         }
     }
+}
+void MikanState::make_branch_sentence() {
+    if(!translation_changed) {
+        shrink_sentences(true);
+        translation_changed = true;
+    }
+}
+bool MikanState::merge_branch_sentences() {
+    if(phrases == nullptr) {
+        return false;
+    }
+    if(sentences.get_index() != 0) {
+        // if sentences.index != 0, it means user fixed translation manually.
+        // so we have to check the differences between sentences[0] and *phrases.
+        engine.request_fix_dictionary(*phrases);
+    }
+    if(translation_changed) {
+        shrink_sentences();
+        translation_changed = false;
+        return true;
+    } else {
+        return false;
+    }
+}
+void MikanState::shrink_sentences(bool reserve_one) {
+    if(phrases == nullptr) {
+        return;
+    }
+    if(reserve_one) {
+        sentences.reset({*phrases, *phrases});
+        sentences.set_index(1);
+    } else {
+        sentences.reset({*phrases});
+    }
+    phrases = sentences.get_current_ptr();
 }
 bool MikanState::delete_surrounding_text() {
     if(context.capabilityFlags().test(fcitx::CapabilityFlag::SurroundingText)) {
@@ -70,7 +117,7 @@ void MikanState::calc_phrase_in_cursor(Phrase** phrase, size_t* cursor_in_phrase
     }
     size_t total_bytes = 0;
     for(const auto& p : *phrases) {
-        size_t phrase_end = total_bytes + p.raw.size();
+        size_t phrase_end = total_bytes + p.get_raw().get_feature().size();
         if(cursor > total_bytes && cursor <= phrase_end) {
             *phrase = const_cast<Phrase*>(&p);
             if(cursor_in_phrase != nullptr) {
@@ -90,7 +137,7 @@ void MikanState::move_cursor_back() {
     // move cursor to back.
     cursor = 0;
     for(const auto& p : *phrases) {
-        cursor += p.raw.size();
+        cursor += p.get_raw().get_feature().size();
     }
 }
 void MikanState::append_kana(const std::string& kana) {
@@ -103,13 +150,13 @@ void MikanState::append_kana(const std::string& kana) {
         Phrase* current;
         size_t  cursor_pos;
         calc_phrase_in_cursor(&current, &cursor_pos);
-        if(current->protection != Phrase::ProtectionLevel::NONE) {
+        if(current->get_protection_level() != ProtectionLevel::NONE) {
             phrases->emplace_back();
             current    = &phrases->back();
             cursor_pos = 0;
         }
-        current->raw.insert(cursor_pos, kana);
-        current->protection = Phrase::ProtectionLevel::NONE;
+        current->get_mutable().insert(cursor_pos, kana);
+        current->set_protection_level(ProtectionLevel::NONE);
         cursor += kana.size();
         sentence_changed = true;
     }
@@ -117,98 +164,10 @@ void MikanState::append_kana(const std::string& kana) {
     auto_commit();
 }
 Sentences MikanState::translate_phrases(const Phrases& source, bool best_only) {
-    constexpr size_t N_BEST_LIMIT = 30;
-    Sentences        result;
     if(phrases == nullptr) {
-        return result;
+        return Sentences();
     }
-    // translate.
-    struct FeatureConstriant {
-        size_t        begin;
-        size_t        end;
-        const Phrase* phrase;
-    };
-    std::vector<FeatureConstriant> feature_constriants;
-    std::string                    buffer;
-    for(auto p = source.begin(); p != source.end(); ++p) {
-        if(p->protection != Phrase::ProtectionLevel::NONE) {
-            size_t begin = buffer.size();
-            size_t end   = begin + p->raw.size();
-            feature_constriants.emplace_back(FeatureConstriant{begin, end, &*p});
-        };
-        buffer += p->raw;
-    }
-    {
-        std::lock_guard<std::mutex> lock(share.primary_vocabulary.mutex);
-
-        auto& dic     = share.primary_vocabulary.data;
-        auto& lattice = *dic->lattice;
-        lattice.set_request_type(best_only ? MECAB_ONE_BEST : MECAB_NBEST);
-        lattice.set_sentence(buffer.data());
-        for(const auto& f : feature_constriants) {
-            dic->lattice->set_feature_constraint(f.begin, f.end, f.phrase->protection == Phrase::ProtectionLevel::PRESERVE_TRANSLATION ? f.phrase->translation.data() : "*");
-        }
-        dic->tagger->parse(&lattice);
-        std::vector<std::string> result_features;
-        while(1) {
-            Phrases     parsed;
-            std::string parsed_feature;
-            for(const auto* node = lattice.bos_node(); node; node = node->next) {
-                if(node->stat == MECAB_BOS_NODE || node->stat == MECAB_EOS_NODE) {
-                    continue;
-                }
-                parsed.emplace_back(Phrase{std::string(node->surface, node->length), node->feature});
-                if(node->stat == MECAB_UNK_NODE) {
-                    parsed.back().translation = parsed.back().raw;
-                }
-                parsed_feature += node->feature;
-            }
-            bool matched = false;
-            for(const auto& r : result_features) {
-                if(r == parsed_feature) {
-                    matched = true;
-                    break;
-                }
-            }
-            if(!matched) {
-                result.emplace_back(parsed);
-                result_features.emplace_back(std::move(parsed_feature));
-            }
-            if(!lattice.next() || result.size() >= N_BEST_LIMIT) {
-                break;
-            }
-        }
-        lattice.clear();
-    }
-
-    // retrive protected phrases.
-    for(auto& r : result) {
-        size_t total_bytes          = 0;
-        auto   protected_phrase_pos = feature_constriants.cbegin();
-        for(auto& p : r) {
-            if(protected_phrase_pos == feature_constriants.cend()) {
-                break;
-            }
-            if(total_bytes == protected_phrase_pos->begin) {
-                // this is a phrase from a protected one.
-                p.protection = protected_phrase_pos->phrase->protection;
-                if(p.protection == Phrase::ProtectionLevel::PRESERVE_TRANSLATION) {
-                    p.candidates = protected_phrase_pos->phrase->candidates;
-
-                    // even if we specify translation, mecab translate to another word
-                    // when the specified word is not exists in the dictionary.
-                    // so we should overwrite the result.
-                    p.translation = protected_phrase_pos->phrase->translation; 
-                }
-                protected_phrase_pos += 1;
-            } else if(total_bytes > protected_phrase_pos->begin) {
-                throw std::runtime_error("protected phrase lost.");
-            }
-            total_bytes += p.raw.size();
-        }
-    }
-
-    return result;
+    return engine.translate_phrases(source, best_only);
 }
 fcitx::Text MikanState::build_preedit_text() const {
     fcitx::Text preedit;
@@ -230,18 +189,18 @@ fcitx::Text MikanState::build_preedit_text() const {
         if(&phrase == current) {
             if(!to_kana.empty()) {
                 format = fcitx::TextFormatFlag::Underline;
-                text   = phrase.raw;
+                text   = phrase.get_raw().get_feature();
                 text.insert(cursor_in_phrase, to_kana);
                 preedit_cursor += cursor_in_phrase + to_kana.size();
             } else {
                 format = fcitx::TextFormatFlag::Bold;
-                text   = phrase.translation;
+                text   = phrase.get_translated().get_feature();
                 preedit_cursor += text.size();
             }
             preedit.setCursor(preedit_cursor);
         } else {
             format = fcitx::TextFormatFlag::Underline;
-            text   = phrase.translation;
+            text   = phrase.get_translated().get_feature();
             preedit_cursor += text.size();
         }
         preedit.append(text, format);
@@ -269,10 +228,10 @@ void MikanState::auto_commit() {
     bool   commited   = false;
     for(size_t i = 0; i <= commit_num; ++i) {
         // we have to ensure that the following phrases' translations will be the same without this phrase.
-        if((*phrases)[on_holds].protection != Phrase::ProtectionLevel::PRESERVE_TRANSLATION) {
+        if((*phrases)[on_holds].get_protection_level() != ProtectionLevel::PRESERVE_TRANSLATION) {
             std::vector<Phrase> copy(phrases->begin() + on_holds + 1, phrases->end());
             copy = translate_phrases(copy, true)[0];
-            if(copy[0].translation != (*phrases)[on_holds + 1].translation) {
+            if(copy[0].get_translated().get_feature() != (*phrases)[on_holds + 1].get_translated().get_feature()) {
                 // translation result will be changed.
                 // but maybe we can commit this phrase with next one.
                 on_holds += 1;
@@ -283,7 +242,7 @@ void MikanState::auto_commit() {
         // commit phrases.
         for(size_t i = 0; i <= on_holds; ++i) {
             commit_phrase(&(*phrases)[0]);
-            size_t commited_bytes = (*phrases)[0].raw.size();
+            size_t commited_bytes = (*phrases)[0].get_raw().get_feature().size();
             if(cursor >= commited_bytes) {
                 cursor -= commited_bytes;
             } else {
@@ -312,9 +271,8 @@ bool MikanState::handle_romaji(const fcitx::KeyEvent& event) {
     if(fcitx_utf8_strlen(romaji_8.data()) != 1) {
         return false;
     }
-    if(move_back_on_input) {
+    if(merge_branch_sentences()) {
         move_cursor_back();
-        move_back_on_input = false;
     }
     char32_t    romaji     = fcitx_utf8_get_char_validated(romaji_8.data(), romaji_8.size(), nullptr);
     size_t      insert_pos = fcitx_utf8_strlen(to_kana.data());
@@ -391,7 +349,7 @@ bool MikanState::handle_delete(const fcitx::KeyEvent& event) {
         if(current_phrase == nullptr) {
             return false;
         }
-        auto   raw   = u8tou32(current_phrase->raw);
+        auto   raw   = u8tou32(current_phrase->get_raw().get_feature());
         size_t bytes = 0;
         auto   kana  = raw.begin();
         for(; kana != raw.end(); ++kana) {
@@ -419,11 +377,11 @@ bool MikanState::handle_delete(const fcitx::KeyEvent& event) {
 
             // delete character from the phrase.
             raw.erase(kana);
-            current_phrase->raw = u32tou8(raw);
+            current_phrase->get_mutable() = u32tou8(raw);
 
             // translate.
-            current_phrase->protection = Phrase::ProtectionLevel::NONE;
-            *phrases                   = translate_phrases(*phrases, true)[0];
+            current_phrase->set_protection_level(ProtectionLevel::NONE);
+            *phrases = translate_phrases(*phrases, true)[0];
 
             // phrases may be empty.
             if(phrases->empty()) {
@@ -457,7 +415,7 @@ bool MikanState::handle_reinterpret_phrases(const fcitx::KeyEvent& event) {
     }
     phrases = sentences.get_current_ptr();
     for(auto& p : *phrases) {
-        p.protection = Phrase::ProtectionLevel::PRESERVE_TRANSLATION;
+        p.set_protection_level(ProtectionLevel::PRESERVE_TRANSLATION);
     }
     return true;
 }
@@ -476,26 +434,23 @@ bool MikanState::handle_candidates(const fcitx::KeyEvent& event) {
         return false;
     }
 
-    // make the next input to be inserted at the last phrase.
-    move_back_on_input = true;
+    make_branch_sentence();
 
     // get candidate list.
-    auto& phrase     = *current_phrase;
-    auto& candidates = phrase.candidates;
-    if(!candidates.is_initialized()) {
+    if(!current_phrase->is_candidates_initialized()) {
+        calc_phrase_in_cursor(&current_phrase, nullptr);
         std::lock_guard<std::mutex> lock(share.primary_vocabulary.mutex);
         std::vector<MeCabModel*>    dic = {share.primary_vocabulary.data};
         std::copy(share.additional_vocabularies.begin(), share.additional_vocabularies.end(), std::back_inserter(dic));
-        candidates             = PhraseCandidates(dic, phrase.raw, phrase.translation);
-        phrase.protection      = Phrase::ProtectionLevel::PRESERVE_TRANSLATION;
-        phrase.save_to_history = true;
+        current_phrase->reset_candidates(PhraseCandidates(dic, current_phrase->get_raw().get_feature(), false));
+        current_phrase->set_protection_level(ProtectionLevel::PRESERVE_TRANSLATION);
     }
-    if(!candidates.has_candidate()) {
+    if(!current_phrase->has_candidates()) {
         return true;
     }
 
-    if(!is_candidate_list_for(context, &phrase)) {
-        context.inputPanel().setCandidateList(std::make_unique<CandidateList>(&candidates, share.candidate_page_size));
+    if(!is_candidate_list_for(context, current_phrase)) {
+        context.inputPanel().setCandidateList(std::make_unique<CandidateList>(&current_phrase->get_candidates(), share.candidate_page_size));
     }
     auto candidate_list = context.inputPanel().candidateList().get();
 
@@ -510,7 +465,6 @@ bool MikanState::handle_candidates(const fcitx::KeyEvent& event) {
         candidate_list->toPageable()->next();
     }
 
-    phrase.translation = candidates.get_current();
     return true;
 }
 bool MikanState::handle_move_cursor_phrase(const fcitx::KeyEvent& event) {
@@ -530,16 +484,15 @@ bool MikanState::handle_move_cursor_phrase(const fcitx::KeyEvent& event) {
     if(new_phrase < &(*phrases)[0] || new_phrase > &phrases->back()) {
         return false;
     }
+
     // move cursor.
-    //new_phrase->raw.append(to_kana);
-    //new_phrase->translation.append(to_kana);
     to_kana.clear();
     cursor = 0;
     for(auto p = &(*phrases)[0]; p <= new_phrase; ++p) {
-        cursor += p->raw.size();
+        cursor += p->get_raw().get_feature().size();
     }
     apply_candidates();
-    move_back_on_input = false;
+    merge_branch_sentences();
     return true;
 }
 bool MikanState::handle_split_phrase(const fcitx::KeyEvent& event) {
@@ -548,27 +501,30 @@ bool MikanState::handle_split_phrase(const fcitx::KeyEvent& event) {
         return false;
     }
 
-    move_back_on_input = true;
+    make_branch_sentence();
 
     Phrase* current_phrase;
     size_t  cursor_in_phrase;
     calc_phrase_in_cursor(&current_phrase, &cursor_in_phrase);
-    if(current_phrase == nullptr || fcitx_utf8_strlen(current_phrase->raw.data()) <= 1) {
+    if(current_phrase == nullptr || fcitx_utf8_strlen(current_phrase->get_raw().get_feature().data()) <= 1) {
         return false;
     }
+
     // insert a new phrase right after the selected phrase.
     size_t phrase_index = current_phrase - &(*phrases)[0];
+
     phrases->insert(phrases->begin() + phrase_index + 1, Phrase());
     Phrase *a = &(*phrases)[phrase_index], *b = &(*phrases)[phrase_index + 1];
 
     // split 'a' into two.
-    auto   raw_32    = u8tou32(a->raw);
+    auto   raw_32    = u8tou32(a->get_raw().get_feature());
     size_t split_pos = share.key_config.match(Actions::SPLIT_PHRASE_LEFT, event) ? 1 : raw_32.size() - 1;
-    b->raw           = u32tou8(raw_32.substr(split_pos));
-    a->raw           = u32tou8(raw_32.substr(0, split_pos));
+    b->get_mutable() = u32tou8(raw_32.substr(split_pos));
+    a->get_mutable() = u32tou8(raw_32.substr(0, split_pos));
 
     // protect them.
-    a->protection = b->protection = Phrase::ProtectionLevel::PRESERVE_SEPARATION;
+    a->set_protection_level(ProtectionLevel::PRESERVE_SEPARATION);
+    b->set_protection_level(ProtectionLevel::PRESERVE_SEPARATION);
 
     apply_candidates();
     *phrases         = translate_phrases(*phrases, true)[0];
@@ -581,7 +537,7 @@ bool MikanState::handle_merge_phrase(const fcitx::KeyEvent& event) {
         return false;
     }
 
-    move_back_on_input = true;
+    make_branch_sentence();
 
     Phrase* current_phrase;
     size_t  cursor_in_phrase;
@@ -596,8 +552,9 @@ bool MikanState::handle_merge_phrase(const fcitx::KeyEvent& event) {
     }
 
     // merge 'current_phrase' and 'merge_phrase' into 'current_phrase'.
-    current_phrase->raw        = left ? merge_phrase->raw + current_phrase->raw : current_phrase->raw + merge_phrase->raw;
-    current_phrase->protection = Phrase::ProtectionLevel::PRESERVE_SEPARATION;
+    std::string a = merge_phrase->get_raw().get_feature(), b = current_phrase->get_raw().get_feature();
+    current_phrase->get_mutable() = left ? a + b : b + a;
+    current_phrase->set_protection_level(ProtectionLevel::PRESERVE_SEPARATION);
 
     // remove 'merge_phrase'.
     size_t phrase_index = merge_phrase - &(*phrases)[0];
@@ -613,7 +570,7 @@ bool MikanState::handle_move_separator(const fcitx::KeyEvent& event) {
         return false;
     }
 
-    move_back_on_input = true;
+    make_branch_sentence();
 
     Phrase* current_phrase;
     size_t  cursor_in_phrase;
@@ -627,23 +584,23 @@ bool MikanState::handle_move_separator(const fcitx::KeyEvent& event) {
     }
 
     // align cursor to phrase back.
-    cursor += current_phrase->raw.size() - cursor_in_phrase;
+    cursor += current_phrase->get_raw().get_feature().size() - cursor_in_phrase;
 
     // move cursor and separator.
     size_t moved_chara_size;
     bool   left = share.key_config.match(Actions::MOVE_SEPARATOR_LEFT, event);
     if(left) {
-        auto current_u32 = u8tou32(current_phrase->raw);
+        auto current_u32 = u8tou32(current_phrase->get_raw().get_feature());
         moved_chara_size = fcitx_ucs4_char_len(current_u32.back());
-        move_phrase->raw.insert(0, u32tou8(current_u32.back()));
+        move_phrase->get_mutable().insert(0, u32tou8(current_u32.back()));
         current_u32.pop_back();
-        current_phrase->raw = u32tou8(current_u32);
+        current_phrase->get_mutable() = u32tou8(current_u32);
     } else {
-        auto move_u32    = u8tou32(move_phrase->raw);
+        auto move_u32    = u8tou32(move_phrase->get_raw().get_feature());
         moved_chara_size = fcitx_ucs4_char_len(move_u32[0]);
-        current_phrase->raw += u32tou8(move_u32[0]);
+        current_phrase->get_mutable() += u32tou8(move_u32[0]);
         move_u32.erase(0, 1);
-        move_phrase->raw = u32tou8(move_u32);
+        move_phrase->get_mutable() = u32tou8(move_u32);
     }
     if(left) {
         cursor -= moved_chara_size;
@@ -651,7 +608,8 @@ bool MikanState::handle_move_separator(const fcitx::KeyEvent& event) {
         cursor += moved_chara_size;
     }
 
-    current_phrase->protection = move_phrase->protection = Phrase::ProtectionLevel::PRESERVE_SEPARATION;
+    current_phrase->set_protection_level(ProtectionLevel::PRESERVE_SEPARATION);
+    move_phrase->set_protection_level(ProtectionLevel::PRESERVE_SEPARATION);
     apply_candidates();
     *phrases         = translate_phrases(*phrases, true)[0];
     sentence_changed = true;
@@ -662,7 +620,7 @@ bool MikanState::handle_convert_katakana(const fcitx::KeyEvent& event) {
         return false;
     }
 
-    move_back_on_input = true;
+    make_branch_sentence();
 
     Phrase* current_phrase;
     calc_phrase_in_cursor(&current_phrase);
@@ -670,26 +628,47 @@ bool MikanState::handle_convert_katakana(const fcitx::KeyEvent& event) {
         return false;
     }
 
-    current_phrase->translation.clear();
-    for(auto c : u8tou32(current_phrase->raw)) {
-        const char* kata = nullptr;
+    std::string                  katakana;
+    auto                         u32 = u8tou32(current_phrase->get_raw().get_feature());
+    std::vector<const HiraKata*> options;
+    size_t char_num = 0;
+    for(auto c = u32.begin(); c != u32.end(); ++c) {
+        std::u32string term(c - char_num, c + 1);
+        std::vector<const HiraKata*> filtered;
         for(size_t i = 0; i < hiragana_katakana_table_limit; ++i) {
             const auto& hirakata = hiragana_katakana_table[i];
-            if(hirakata.hiragana == c) {
-                kata = hirakata.katakana;
-                break;
+            if(begin_with(hirakata.hiragana, term)) {
+                emplace_unique(filtered, &hirakata, [](const HiraKata* h, const HiraKata* o) {
+                    return h->hiragana == o->hiragana;
+                });
             }
         }
-        if(kata == nullptr) {
-            current_phrase->translation += u32tou8(c);
+        if(filtered.size() == 1) {
+            katakana += filtered[0]->katakana;
+            char_num = 0;
+            options.clear();
+        } else if(filtered.empty() || c + 1 == u32.end()) {
+            if(!filtered.empty()) {
+                options = std::move(filtered);
+            }
+            if(options.empty()) {
+                katakana += u32tou8(*c);
+            } else {
+                std::string u8str = options[0]->katakana;
+                auto u32str = u8tou32(u8str);
+                katakana += u32tou8(u32str.substr(0, char_num));
+                options.clear();
+                char_num = 0;
+            }
         } else {
-            current_phrase->translation += kata;
+            options = std::move(filtered);
+            char_num += 1;
         }
     }
+    current_phrase->override_translated(MeCabWord(katakana));
 
     apply_candidates();
-    current_phrase->protection      = Phrase::ProtectionLevel::PRESERVE_TRANSLATION;
-    current_phrase->save_to_history = true;
+    current_phrase->set_protection_level(ProtectionLevel::PRESERVE_TRANSLATION);
     return true;
 }
 void MikanState::handle_key_event(fcitx::KeyEvent& event) {
@@ -712,6 +691,7 @@ void MikanState::handle_key_event(fcitx::KeyEvent& event) {
     return;
 }
 void MikanState::handle_activate() {
+    context.setCapabilityFlags(context.capabilityFlags() |= fcitx::CapabilityFlag::ClientUnfocusCommit);
 }
 void MikanState::handle_deactivate() {
     apply_candidates();
@@ -737,5 +717,4 @@ const std::vector<std::function<bool(MikanState*, const fcitx::KeyEvent&)>> Mika
     &MikanState::handle_romaji,
 };
 MikanState::MikanState(fcitx::InputContext& context, MikanEngine& engine, Share& share) : context(context), engine(engine), share(share) {
-    context.setCapabilityFlags(context.capabilityFlags() |= fcitx::CapabilityFlag::ClientUnfocusCommit);
 }

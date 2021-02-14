@@ -4,7 +4,7 @@
 
 #include "mecab-model.hpp"
 
-MeCabModel::MeCabModel(const char* dictionary, const char* user_dictionary) {
+MeCabModel::MeCabModel(const char* dictionary, const char* user_dictionary, bool is_system_dictionary) : is_system_dictionary(is_system_dictionary) {
     std::string dict_path = "-d ";
     dict_path += dictionary;
     if(user_dictionary != nullptr && std::filesystem::is_regular_file(user_dictionary)) {

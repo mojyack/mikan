@@ -5,40 +5,41 @@
 #include <fcitx/inputmethodengine.h>
 #include <fcitx/instance.h>
 
+#include "phrase.hpp"
+#include "share.hpp"
 #include "state.hpp"
 #include "type.hpp"
-#include "phrase.hpp"
 
 class MikanContext;
 class History;
 class MikanEngine final : public fcitx::InputMethodEngine {
   private:
-    using DictionaryWord  = std::array<std::string, 2>;
-    using DictionaryWords = std::vector<DictionaryWord>;
-
     fcitx::Instance*              instance;
     fcitx::FactoryFor<MikanState> factory;
     Share                         share;
 
-    std::string                   system_dictionary_path;
-    std::string                   history_file_path;
-    std::string                   history_dictionary_path;
-    std::string                   dictionary_compiler_path;
-    std::vector<std::string>      user_dictionary_paths;
-    std::thread                   dictionary_updater;
-    bool                          finish_dictionary_updater;
-    ConditionalVariable           dictionary_update_event;
-    SafeVar<DictionaryWords>      dictionary_update_queue;
-    SafeVar<std::vector<History>> histories;
+    std::string              system_dictionary_path;
+    std::string              history_file_path;
+    std::string              history_dictionary_path;
+    std::string              dictionary_compiler_path;
+    std::vector<std::string> user_dictionary_paths;
+    std::thread              dictionary_updater;
+    bool                     finish_dictionary_updater;
+    ConditionalVariable      dictionary_update_event;
+    Histories                histories;
+    SafeVar<Sentences>       fix_requests;
 
     bool load_configuration();
-    bool add_history(const DictionaryWords& words);
+    bool add_history(const History& word);
     void save_hisotry() const;
     bool compile_user_dictionary() const;
     void reload_dictionary();
+    long recalc_cost(const Phrases& phrases) const;
+    void compare_and_fix_dictionary(const Phrases& wants);
 
   public:
-    void request_update_dictionary(const char* raw, const char* translation);
+    Sentences translate_phrases(const Phrases& source, bool best_only, bool ignore_protection = false) const;
+    void      request_fix_dictionary(Phrases wants);
 
     void keyEvent(const fcitx::InputMethodEntry& entry, fcitx::KeyEvent& event) override;
     void activate(const fcitx::InputMethodEntry& entry, fcitx::InputContextEvent& event) override;

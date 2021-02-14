@@ -15,10 +15,23 @@ template <typename T, typename E>
 bool contains(const T& vec, const E& elm) {
     return std::find(vec.begin(), vec.end(), elm) != vec.end();
 }
+template <typename T, typename E, typename P>
+bool contains(const T& vec, const E& elm, P pred) {
+    return std::find_if(vec.begin(), vec.end(), [&elm, &pred](const E& o){return pred(elm, o);}) != vec.end();
+}
 
 template <typename T>
 bool emplace_unique(std::vector<T>& vec, const T& elm) {
     if(contains(vec, elm)) {
+        return false;
+    } else {
+        vec.emplace_back(elm);
+        return true;
+    }
+}
+template <typename T, typename P>
+bool emplace_unique(std::vector<T>& vec, const T& elm, P pred) {
+    if(contains(vec, elm, pred)) {
         return false;
     } else {
         vec.emplace_back(elm);
