@@ -182,6 +182,7 @@ fcitx::Text MikanState::build_preedit_text() const {
     size_t  cursor_in_phrase;
     size_t  preedit_cursor = 0;
     calc_phrase_in_cursor(&current, &cursor_in_phrase);
+    const bool is_current_last = current == &phrases->back();
     for(size_t i = 0, limit = phrases->size(); i < limit; ++i) {
         const auto& phrase = (*phrases)[i];
         auto        text   = std::string();
@@ -205,10 +206,12 @@ fcitx::Text MikanState::build_preedit_text() const {
         }
         preedit.append(text, format);
         // add space between phrases.
-        const static std::string space      = " ";
-        std::string              space_copy = space;
-        preedit.append(space_copy);
-        preedit_cursor += space.size();
+        if(share.insert_space == InsertSpaceOptions::On || (share.insert_space == InsertSpaceOptions::Smart && !is_current_last)) {
+            const static std::string space      = " ";
+            std::string              space_copy = space;
+            preedit.append(space_copy);
+            preedit_cursor += space.size();
+        }
     }
     return preedit;
 }
@@ -631,9 +634,9 @@ bool MikanState::handle_convert_katakana(const fcitx::KeyEvent& event) {
     std::string                  katakana;
     auto                         u32 = u8tou32(current_phrase->get_raw().get_feature());
     std::vector<const HiraKata*> options;
-    size_t char_num = 0;
+    size_t                       char_num = 0;
     for(auto c = u32.begin(); c != u32.end(); ++c) {
-        std::u32string term(c - char_num, c + 1);
+        std::u32string               term(c - char_num, c + 1);
         std::vector<const HiraKata*> filtered;
         for(size_t i = 0; i < hiragana_katakana_table_limit; ++i) {
             const auto& hirakata = hiragana_katakana_table[i];
@@ -654,8 +657,8 @@ bool MikanState::handle_convert_katakana(const fcitx::KeyEvent& event) {
             if(options.empty()) {
                 katakana += u32tou8(*c);
             } else {
-                std::string u8str = options[0]->katakana;
-                auto u32str = u8tou32(u8str);
+                std::string u8str  = options[0]->katakana;
+                auto        u32str = u8tou32(u8str);
                 katakana += u32tou8(u32str.substr(0, char_num));
                 options.clear();
                 char_num = 0;

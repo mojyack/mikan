@@ -94,8 +94,16 @@ class MeCabWord {
     }
 };
 using MeCabWords = std::vector<MeCabWord>;
+
 struct History {
     std::string raw;
     MeCabWord   translation;
 };
 using Histories = std::vector<History>;
+
+enum class InsertSpaceOptions {
+    None,
+    On,
+    Off,
+    Smart,
+};

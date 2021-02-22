@@ -147,6 +147,7 @@ bool MikanEngine::load_configuration() {
     constexpr const char* CANDIDATE_PAGE_SIZE           = "candidate_page_size";
     constexpr const char* AUTO_COMMIT_THRESHOLD         = "auto_commit_threshold";
     constexpr const char* DICTIONARY                    = "dictionary";
+    constexpr const char* INSERT_SPACE                  = "insert_space";
     constexpr size_t      DEFAULT_CANDIDATE_PAGE_SIZE   = 10;
     constexpr size_t      DEFAULT_AUTO_COMMIT_THRESHOLD = 8;
     auto                  user_config_dir               = get_user_config_dir();
@@ -189,6 +190,13 @@ bool MikanEngine::load_configuration() {
                 }
             } else if(entry_name == DICTIONARY) {
                 emplace_unique(user_dictionary_paths, user_config_dir + value);
+            } else if(entry_name == INSERT_SPACE) {
+                auto option = value == "on" ? InsertSpaceOptions::On : value == "off" ? InsertSpaceOptions::Off : value == "smart" ? InsertSpaceOptions::Smart : InsertSpaceOptions::None;
+                if(option != InsertSpaceOptions::None) {
+                    share.insert_space = option;
+                } else {
+                    error = true;
+                }
             }
             if(error) {
                 FCITX_WARN() << "error while parsing configuration: " << entry_name;
