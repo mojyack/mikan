@@ -13,14 +13,13 @@ class MikanState final : public fcitx::InputContextProperty {
     fcitx::InputContext& context;
     MikanEngine&         engine;
     Share&               share;
-
-    Phrases*    phrases = nullptr;
-    size_t      cursor; // in bytes
-    std::string to_kana;
-    bool        translation_changed = false;
-
-    SentenceCandidates sentences;
-    bool               sentence_changed = false;
+    Phrases*             phrases = nullptr;
+    size_t               cursor; // in bytes
+    std::vector<size_t>  romaji_table_indexs; // used in handle_romaji().
+    std::string          to_kana;
+    bool                 translation_changed = false;
+    SentenceCandidates   sentences;
+    bool                 sentence_changed = false;
 
     void        commit_phrase(const Phrase* phrase);
     void        commit_all_phrases();

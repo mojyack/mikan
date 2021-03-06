@@ -270,57 +270,88 @@ bool MikanState::handle_romaji(const fcitx::KeyEvent& event) {
     if(event.isRelease()) {
         return false;
     }
-    std::string romaji_8 = fcitx::Key::keySymToUTF8(event.key().sym());
+    const std::string romaji_8 = fcitx::Key::keySymToUTF8(event.key().sym());
     if(fcitx_utf8_strlen(romaji_8.data()) != 1) {
         return false;
     }
     if(merge_branch_sentences()) {
         move_cursor_back();
     }
-    char32_t    romaji     = fcitx_utf8_get_char_validated(romaji_8.data(), romaji_8.size(), nullptr);
-    size_t      insert_pos = fcitx_utf8_strlen(to_kana.data());
-    const char* match      = nullptr;
-    const char* refill     = nullptr;
-    bool        append     = false;
-    for(uint64_t i = 0; i < romaji_table_limit; ++i) {
-        if(romaji_table[i].romaji.size() <= insert_pos) {
-            continue;
-        }
-        if(romaji_table[i].romaji[insert_pos] == romaji) {
-            append = true;
-            if(romaji_table[i].romaji[insert_pos + 1] == U'\0' && u8tou32(to_kana + romaji_8) == romaji_table[i].romaji) {
-                match  = romaji_table[i].kana;
-                refill = romaji_table[i].refill;
-                break;
-            }
+    auto filter = [](std::vector<size_t>& filtered, size_t i, size_t insert_pos, char32_t romaji) -> bool {
+        enum class JudgeResult {
+            FAIL,
+            CONTINUE,
+            MATCH,
         };
-    }
-    if(!append) {
-        // no kana matched with current to_kana. try once more without it.
-        for(uint64_t i = 0; i < romaji_table_limit; ++i) {
-            if(romaji_table[i].romaji[0] == romaji) {
-                append = true;
-                if(romaji_table[i].romaji[1] == U'\0') {
-                    match  = romaji_table[i].kana;
-                    refill = romaji_table[i].refill;
-                    break;
+        auto judge = [romaji, insert_pos](const RomajiKana& romaji_kana) -> JudgeResult {
+            if(romaji_kana.romaji.size() <= insert_pos) {
+                return JudgeResult::FAIL;
+            }
+            if(romaji_kana.romaji[insert_pos] == romaji) {
+                if(romaji_kana.romaji.size() == insert_pos + 1) {
+                    return JudgeResult::MATCH;
                 }
+                return JudgeResult::CONTINUE;
+            };
+            return JudgeResult::FAIL;
+        };
+        switch(judge(romaji_table[i])) {
+        case JudgeResult::FAIL:
+            return false;
+        case JudgeResult::CONTINUE:
+            filtered.emplace_back(i);
+            return false;
+        case JudgeResult::MATCH:
+            return true;
+        }
+    };
+#define FILTER(f, i, p, r)          \
+    if(filter(f, i, p, r)) {        \
+        matched = &romaji_table[i]; \
+        break;                      \
+    }
+#define RESET(f, p, r)                               \
+    for(size_t i = 0; i < romaji_table_limit; ++i) { \
+        FILTER(f, i, p, r)                           \
+    }
+    std::vector<size_t> filtered;
+    const RomajiKana*   matched    = nullptr;
+    const char32_t      romaji     = fcitx_utf8_get_char_validated(romaji_8.data(), romaji_8.size(), nullptr);
+    const size_t        insert_pos = fcitx_utf8_strlen(to_kana.data());
+    if(romaji_table_indexs.empty()) {
+        RESET(filtered, insert_pos, romaji)
+    } else {
+        for(auto itr = romaji_table_indexs.cbegin(); itr != romaji_table_indexs.cend(); ++itr) {
+            FILTER(filtered, *itr, insert_pos, romaji)
+        }
+    }
+    if(matched == nullptr) {
+        romaji_table_indexs = std::move(filtered);
+        if(romaji_table_indexs.empty()) {
+            // no kana matched with current to_kana. try once more without it.
+            RESET(romaji_table_indexs, 0, romaji)
+            if(!romaji_table_indexs.empty() || matched != nullptr) {
+                to_kana.clear();
             }
         }
-        if(append) {
-            to_kana.clear();
+        if(romaji_table_indexs.size() == 1) {
+            // only one result.
+            matched = &romaji_table[romaji_table_indexs[0]];
         }
     }
-    if(append) {
+    if(!romaji_table_indexs.empty() || matched != nullptr) {
         apply_candidates();
         delete_surrounding_text();
-        if(match != nullptr) {
-            append_kana(match);
-            if(refill != nullptr) {
-                to_kana = refill;
+        if(matched != nullptr) {
+            append_kana(matched->kana);
+            romaji_table_indexs.clear();
+            if(matched->refill != nullptr) {
+                RESET(romaji_table_indexs, 0, fcitx_utf8_get_char_validated(matched->refill, std::strlen(matched->refill), nullptr));
+                to_kana = matched->refill;
             } else {
                 to_kana.clear();
             }
+
         } else {
             to_kana += romaji_8;
         }
@@ -328,6 +359,8 @@ bool MikanState::handle_romaji(const fcitx::KeyEvent& event) {
     } else {
         return false;
     }
+#undef FILTER
+#undef RESET
 }
 bool MikanState::handle_commit_phrases(const fcitx::KeyEvent& event) {
     if(!share.key_config.match(Actions::COMMIT, event) || phrases == nullptr) {
