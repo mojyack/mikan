@@ -181,7 +181,6 @@ fcitx::Text MikanState::build_preedit_text() const {
     size_t  cursor_in_phrase;
     size_t  preedit_cursor = 0;
     calc_phrase_in_cursor(&current, &cursor_in_phrase);
-    const bool is_current_last = current == &phrases->back();
     for(size_t i = 0, limit = phrases->size(); i < limit; ++i) {
         const auto& phrase = (*phrases)[i];
         auto        text   = std::string();
@@ -205,7 +204,9 @@ fcitx::Text MikanState::build_preedit_text() const {
         }
         preedit.append(text, format);
         // add space between phrases.
-        if(share.insert_space == InsertSpaceOptions::On || (share.insert_space == InsertSpaceOptions::Smart && !is_current_last)) {
+        const bool is_current_last = current == &phrases->back();
+        const bool has_branches = sentences.get_data_size() >= 2;
+        if(share.insert_space == InsertSpaceOptions::On || (share.insert_space == InsertSpaceOptions::Smart && (!is_current_last || has_branches))) {
             const static std::string space      = " ";
             std::string              space_copy = space;
             preedit.append(space_copy);
