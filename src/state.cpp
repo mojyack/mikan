@@ -96,16 +96,15 @@ void MikanState::shrink_sentences(bool reserve_one) {
     phrases = sentences.get_current_ptr();
 }
 bool MikanState::delete_surrounding_text() {
-    if(context.capabilityFlags().test(fcitx::CapabilityFlag::SurroundingText)) {
-        const auto& text = context.surroundingText();
-        if(!text.isValid()) {
-            return false;
-        }
-        context.deleteSurroundingText(0, text.anchor() - text.cursor());
-        return true;
-    } else {
+    if(phrases != nullptr || !to_kana.empty() || !context.capabilityFlags().test(fcitx::CapabilityFlag::SurroundingText)) {
         return false;
     }
+    const auto& text = context.surroundingText();
+    if(!text.isValid()) {
+        return false;
+    }
+    context.deleteSurroundingText(0, text.anchor() - text.cursor());
+    return true;
 }
 void MikanState::calc_phrase_in_cursor(Phrase** phrase, size_t* cursor_in_phrase) const {
     if(phrases == nullptr) {
