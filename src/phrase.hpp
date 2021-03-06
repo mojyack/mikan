@@ -29,6 +29,7 @@ class Phrase {
     void              reset_candidates(PhraseCandidates&& candidates);
     Phrase();
     Phrase(const std::string& raw);
+    Phrase(MeCabWord&& raw, MeCabWord&& translated);
     Phrase(const MeCab::Node* node);
 };
 using Phrases   = std::vector<Phrase>;

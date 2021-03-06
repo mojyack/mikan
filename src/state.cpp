@@ -664,7 +664,8 @@ bool MikanState::handle_convert_katakana(const fcitx::KeyEvent& event) {
     }
 
     std::string                  katakana;
-    auto                         u32 = u8tou32(current_phrase->get_raw().get_feature());
+    const std::string&           raw = current_phrase->get_raw().get_feature();
+    auto                         u32 = u8tou32(raw);
     std::vector<const HiraKata*> options;
     size_t                       char_num = 0;
     for(auto c = u32.begin(); c != u32.end(); ++c) {
@@ -700,7 +701,31 @@ bool MikanState::handle_convert_katakana(const fcitx::KeyEvent& event) {
             char_num += 1;
         }
     }
-    current_phrase->override_translated(MeCabWord(katakana));
+    {
+        // try to get word information(if exists in dictionary).
+        std::lock_guard<std::mutex> lock(share.primary_vocabulary.mutex);
+        auto& dic     = share.primary_vocabulary.data;
+        auto& lattice = *dic->lattice;
+        lattice.set_request_type(MECAB_ONE_BEST);
+        lattice.set_sentence(raw.data());
+        lattice.set_feature_constraint(0, raw.size(), katakana.data());
+        dic->tagger->parse(&lattice);
+        bool found = false;
+        for(const auto* node = lattice.bos_node(); node; node = node->next) {
+            if(node->stat == MECAB_BOS_NODE || node->stat == MECAB_EOS_NODE) {
+                continue;
+            }
+            if(node->stat == MECAB_NOR_NODE) {
+                found = true;
+                *current_phrase = Phrase(MeCabWord(raw), MeCabWord(katakana, node->rcAttr, node->lcAttr, node->wcost, node->cost, true));
+                break;
+            }
+        }
+        lattice.clear();
+        if(!found) {
+            current_phrase->override_translated(MeCabWord(katakana));
+        }
+    }
 
     apply_candidates();
     current_phrase->set_protection_level(ProtectionLevel::PRESERVE_TRANSLATION);

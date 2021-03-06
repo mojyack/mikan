@@ -51,10 +51,9 @@ void Phrase::reset_candidates(PhraseCandidates&& new_candidates) {
     candidates = std::move(new_candidates); 
 }
 Phrase::Phrase() : candidates(MeCabWord()) {};
-Phrase::Phrase(const std::string& raw) : candidates(MeCabWord(raw)){
-}
-Phrase::Phrase(const MeCab::Node* node) : 
-    candidates(MeCabWord(get_node_surface(node)), node_to_word(node)) {
+Phrase::Phrase(const std::string& raw) : candidates(MeCabWord(raw)){}
+Phrase::Phrase(MeCabWord&& raw, MeCabWord&& translated) : candidates(MeCabWord(raw), MeCabWord(translated)){}
+Phrase::Phrase(const MeCab::Node* node) : candidates(MeCabWord(get_node_surface(node)), node_to_word(node)) {
 }
 
 bool SentenceCandidates::empty() const noexcept {
