@@ -314,16 +314,27 @@ bool MikanState::handle_romaji(const fcitx::KeyEvent& event) {
     for(size_t i = 0; i < romaji_table_limit; ++i) { \
         FILTER(f, i, p, r)                           \
     }
+#define CONTINUE(f, p, r) \
+    for(auto itr = romaji_table_indexs.cbegin(); itr != romaji_table_indexs.cend(); ++itr) { \
+        FILTER(f, *itr, p, r) \
+    }
+
     std::vector<size_t> filtered;
     const RomajiKana*   matched    = nullptr;
     const char32_t      romaji     = fcitx_utf8_get_char_validated(romaji_8.data(), romaji_8.size(), nullptr);
-    const size_t        insert_pos = fcitx_utf8_strlen(to_kana.data());
     if(romaji_table_indexs.empty()) {
-        RESET(filtered, insert_pos, romaji)
-    } else {
-        for(auto itr = romaji_table_indexs.cbegin(); itr != romaji_table_indexs.cend(); ++itr) {
-            FILTER(filtered, *itr, insert_pos, romaji)
+        if(to_kana.empty()) {
+            RESET(romaji_table_indexs, 0, romaji)
+        } else {
+            RESET(romaji_table_indexs, 0, to_kana[0])
+            for(size_t index = 1; index < to_kana.size(); index += 1) {
+                CONTINUE(filtered, index, fcitx_utf8_get_char_validated(&to_kana[index], 1, nullptr))
+            }
+            CONTINUE(filtered, to_kana.size(), romaji)
         }
+    } else {
+        const size_t        insert_pos = fcitx_utf8_strlen(to_kana.data());
+        CONTINUE(filtered, insert_pos, romaji)
     }
     if(matched == nullptr) {
         romaji_table_indexs = std::move(filtered);
@@ -361,6 +372,7 @@ bool MikanState::handle_romaji(const fcitx::KeyEvent& event) {
     }
 #undef FILTER
 #undef RESET
+#undef CONTINUE
 }
 bool MikanState::handle_commit_phrases(const fcitx::KeyEvent& event) {
     if(!share.key_config.match(Actions::COMMIT, event) || phrases == nullptr) {
