@@ -448,6 +448,8 @@ bool MikanState::handle_reinterpret_phrases(const fcitx::KeyEvent& event) {
         return false;
     }
 
+    translation_changed = true;
+
     if(sentence_changed) {
         sentences.reset(translate_phrases(*phrases, false));
         sentence_changed = false;
