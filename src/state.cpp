@@ -542,7 +542,6 @@ bool MikanState::handle_move_cursor_phrase(const fcitx::KeyEvent& event) {
         cursor += p->get_raw().get_feature().size();
     }
     apply_candidates();
-    merge_branch_sentences();
     return true;
 }
 bool MikanState::handle_split_phrase(const fcitx::KeyEvent& event) {
