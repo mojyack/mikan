@@ -205,7 +205,7 @@ fcitx::Text MikanState::build_preedit_text() const {
         preedit.append(text, format);
         // add space between phrases.
         const bool is_current_last = current == &phrases->back();
-        const bool has_branches = sentences.get_data_size() >= 2;
+        const bool has_branches    = sentences.get_data_size() >= 2;
         if(share.insert_space == InsertSpaceOptions::On || (share.insert_space == InsertSpaceOptions::Smart && (!is_current_last || has_branches))) {
             const static std::string space      = " ";
             std::string              space_copy = space;
@@ -314,14 +314,14 @@ bool MikanState::handle_romaji(const fcitx::KeyEvent& event) {
     for(size_t i = 0; i < romaji_table_limit; ++i) { \
         FILTER(f, i, p, r)                           \
     }
-#define CONTINUE(f, p, r) \
+#define CONTINUE(f, p, r)                                                                    \
     for(auto itr = romaji_table_indexs.cbegin(); itr != romaji_table_indexs.cend(); ++itr) { \
-        FILTER(f, *itr, p, r) \
+        FILTER(f, *itr, p, r)                                                                \
     }
 
     std::vector<size_t> filtered;
-    const RomajiKana*   matched    = nullptr;
-    const char32_t      romaji     = fcitx_utf8_get_char_validated(romaji_8.data(), romaji_8.size(), nullptr);
+    const RomajiKana*   matched = nullptr;
+    const char32_t      romaji  = fcitx_utf8_get_char_validated(romaji_8.data(), romaji_8.size(), nullptr);
     if(romaji_table_indexs.empty()) {
         if(to_kana.empty()) {
             RESET(romaji_table_indexs, 0, romaji)
@@ -333,7 +333,7 @@ bool MikanState::handle_romaji(const fcitx::KeyEvent& event) {
             CONTINUE(filtered, to_kana.size(), romaji)
         }
     } else {
-        const size_t        insert_pos = fcitx_utf8_strlen(to_kana.data());
+        const size_t insert_pos = fcitx_utf8_strlen(to_kana.data());
         CONTINUE(filtered, insert_pos, romaji)
     }
     if(matched == nullptr) {
@@ -703,9 +703,13 @@ bool MikanState::handle_convert_katakana(const fcitx::KeyEvent& event) {
             if(options.empty()) {
                 katakana += u32tou8(*c);
             } else {
-                std::string u8str  = options[0]->katakana;
-                auto        u32str = u8tou32(u8str);
-                katakana += u32tou8(u32str.substr(0, char_num));
+                if(char_num != 0) {
+                    const std::string& u8str  = options[0]->katakana;
+                    auto               u32str = u8tou32(u8str);
+                    katakana += u32tou8(u32str.substr(0, char_num));
+                } else {
+                    katakana += options[0]->katakana;
+                }
                 options.clear();
                 char_num = 0;
             }
@@ -717,8 +721,8 @@ bool MikanState::handle_convert_katakana(const fcitx::KeyEvent& event) {
     {
         // try to get word information(if exists in dictionary).
         std::lock_guard<std::mutex> lock(share.primary_vocabulary.mutex);
-        auto& dic     = share.primary_vocabulary.data;
-        auto& lattice = *dic->lattice;
+        auto&                       dic     = share.primary_vocabulary.data;
+        auto&                       lattice = *dic->lattice;
         lattice.set_request_type(MECAB_ONE_BEST);
         lattice.set_sentence(raw.data());
         lattice.set_feature_constraint(0, raw.size(), katakana.data());
@@ -729,7 +733,7 @@ bool MikanState::handle_convert_katakana(const fcitx::KeyEvent& event) {
                 continue;
             }
             if(node->stat == MECAB_NOR_NODE) {
-                found = true;
+                found           = true;
                 *current_phrase = Phrase(MeCabWord(raw), MeCabWord(katakana, node->rcAttr, node->lcAttr, node->wcost, node->cost, true));
                 break;
             }
