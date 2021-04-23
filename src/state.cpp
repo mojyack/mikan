@@ -779,8 +779,11 @@ void MikanState::handle_deactivate() {
     context.updateUserInterface(fcitx::UserInterfaceComponent::InputPanel);
     if(phrases != nullptr) {
         commit_all_phrases();
-        to_kana.clear();
         reset();
+    }
+    if(!to_kana.empty()) {
+        context.commitString(to_kana);
+        to_kana.clear();
     }
 }
 const std::vector<std::function<bool(MikanState*, const fcitx::KeyEvent&)>> MikanState::handlers = {
