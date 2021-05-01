@@ -36,6 +36,7 @@ const RomajiKana romaji_table[] = {
     {U"mya", "みゃ"}, {U"myi", "みぃ"}, {U"myu", "みゅ"}, {U"mye", "みぇ"}, {U"myo", "みょ"},
     {U"pya", "ぴゃ"}, {U"pyi", "ぴぃ"}, {U"pyu", "ぴゅ"}, {U"pye", "ぴぇ"}, {U"pyo", "ぴょ"},
     {U"dda", "っだ"}, {U"ddi", "っぢ"}, {U"ddu", "っづ"}, {U"dde", "っで"}, {U"ddo", "っど"},
+    {U"gga", "っが"}, {U"ggi", "っぎ"}, {U"ggu", "っぐ"}, {U"gge", "っげ"}, {U"ggo", "っご"},
     {U"ppa", "っぱ"}, {U"ppi", "っぴ"}, {U"ppu", "っぷ"}, {U"ppe", "っぺ"}, {U"ppo", "っぽ"},
     {U"ssa", "っさ"}, {U"ssi", "っし"}, {U"ssu", "っす"}, {U"sse", "っせ"}, {U"sso", "っそ"},
     {U"hya", "ひゃ"}, {U"hyi", "ひぃ"}, {U"hyu", "ひゅ"}, {U"hye", "ひぇ"}, {U"hyo", "ひょ"},
