@@ -42,7 +42,7 @@ auto MikanState::handle_romaji(const fcitx::KeyEvent& event) -> bool {
     auto exact = romaji_index.filter(to_kana);
     if(exact == &romaji_table[romaji_table_limit]) {
         to_kana = romaji_8;
-        exact = romaji_index.filter(to_kana);
+        exact   = romaji_index.filter(to_kana);
         if(exact == &romaji_table[romaji_table_limit]) {
             to_kana.clear();
             return false;
@@ -196,8 +196,16 @@ auto MikanState::handle_candidates(const fcitx::KeyEvent& event) -> bool {
     return true;
 }
 auto MikanState::handle_commit_phrases(const fcitx::KeyEvent& event) -> bool {
-    if(!share.key_config.match(Actions::COMMIT, event) || phrases == nullptr) {
+    if(!share.key_config.match(Actions::COMMIT, event)) {
         return false;
+    }
+    if(phrases == nullptr) {
+        if(to_kana.empty()) {
+            return false;
+        }
+        context.commitString(to_kana);
+        to_kana.clear();
+        return true;
     }
     commit_all_phrases();
     reset();
