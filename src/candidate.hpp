@@ -1,99 +1,92 @@
 #pragma once
-#include <cstddef>
-#include <cstdint>
-#include <optional>
-#include <string>
-#include <vector>
-
-#include <fcitx-utils/keysymgen.h>
 #include <fcitx/candidatelist.h>
 
-#include "type.hpp"
+#include "mecab-word.hpp"
 
+namespace mikan {
 class Candidates {
   protected:
     uint64_t index;
 
   public:
-    virtual size_t                   get_data_size() const noexcept = 0;
-    void                             move_index(int val);
-    void                             set_index(uint64_t val);
-    uint64_t                         get_index() const noexcept;
-    virtual std::vector<std::string> get_labels() const noexcept = 0;
-    Candidates() {}
-    virtual ~Candidates() {}
+    virtual auto get_data_size() const -> size_t = 0;
+    auto         move_index(int val) -> void;
+    auto         set_index(uint64_t val) -> void;
+    auto         get_index() const -> uint64_t;
+    virtual auto get_labels() const -> std::vector<std::string> = 0;
+
+    Candidates()          = default;
+    virtual ~Candidates() = default;
 };
 
 class MeCabModel;
 class PhraseCandidates : public Candidates {
   private:
     MeCabWords data;
-    bool is_initialized_with_dictionaries = false;
+    bool       is_initialized_with_dictionaries = false;
 
   public:
-    const MeCabWord&         get_raw() const;
-    const MeCabWord&         get_translated() const;
-    std::string&             get_mutable();
-    void                     override_translated(const MeCabWord& translated);
-    void                     override_translated(MeCabWord&& translated);
-    bool                     is_initialized() const noexcept;
-    bool                     has_candidates() const noexcept;
-    size_t                   get_data_size() const noexcept override;
-    const MeCabWords&        get_data_ref() const noexcept;
-    const MeCabWord&         get_current() const;
-    std::vector<std::string> get_labels() const noexcept override;
-    const MeCabWord&         operator[](size_t index) const;
-    PhraseCandidates() {};
+    auto get_raw() const -> const MeCabWord&;
+    auto get_translated() const -> const MeCabWord&;
+    auto get_mutable_feature() -> std::string&;
+    auto override_translated(const MeCabWord& translated) -> void;
+    auto override_translated(MeCabWord&& translated) -> void;
+    auto is_initialized() const -> bool;
+    auto has_candidates() const -> bool;
+    auto get_data_size() const -> size_t override;
+    auto get_data_ref() const -> const MeCabWords&;
+    auto get_current() const -> const MeCabWord&;
+    auto get_labels() const -> std::vector<std::string> override;
+    auto operator[](size_t index) const -> const MeCabWord&;
+
+    PhraseCandidates() = default;
     PhraseCandidates(MeCabWord raw);
     PhraseCandidates(MeCabWord raw, MeCabWord translated);
     PhraseCandidates(const std::vector<MeCabModel*>& dictionaries, const std::string& raw, bool best_only);
 };
 
 class CandidateWord : public fcitx::CandidateWord {
-  private:
   public:
-    void select(fcitx::InputContext* inputContext) const override;
+    auto select(fcitx::InputContext* inputContext) const -> void override;
     CandidateWord(fcitx::Text text);
-    ~CandidateWord();
+    ~CandidateWord() = default;
 };
 
 class CandidateList : public fcitx::CandidateList,
                       public fcitx::PageableCandidateList,
                       public fcitx::CursorMovableCandidateList {
   private:
-    Candidates* const data;
-    const size_t      page_size;
-    size_t            index_to_local(size_t idx) const noexcept;
-    size_t            index_to_global(size_t idx) const noexcept;
-
+    Candidates* const                           data;
+    const size_t                                page_size;
     std::vector<std::unique_ptr<CandidateWord>> words;
 
+    auto index_to_local(size_t idx) const -> size_t;
+    auto index_to_global(size_t idx) const -> size_t;
+
   public:
-    bool match(Candidates* const data) const noexcept;
+    auto match(Candidates* const data) const -> bool;
 
     // CandidateList
-    const fcitx::Text&   label(int idx) const override;
-    const CandidateWord& candidate(int idx) const override;
-    int                  cursorIndex() const override;
-    int                  size() const override;
+    auto label(int idx) const -> const fcitx::Text& override;
+    auto candidate(int idx) const -> const CandidateWord& override;
+    auto cursorIndex() const -> int override;
+    auto size() const -> int override;
 
     // PageableCandidateList
-    bool hasPrev() const override;
-    bool hasNext() const override;
-    void prev() override;
-    void next() override;
-
-    bool usedNextBefore() const override;
-
-    int  totalPages() const override;
-    int  currentPage() const override;
-    void setPage(int page) override;
-
-    fcitx::CandidateLayoutHint layoutHint() const override;
+    auto hasPrev() const -> bool override;
+    auto hasNext() const -> bool override;
+    auto prev() -> void override;
+    auto next() -> void override;
+    auto usedNextBefore() const -> bool override;
+    auto totalPages() const -> int override;
+    auto currentPage() const -> int override;
+    auto setPage(int page) -> void override;
+    auto layoutHint() const -> fcitx::CandidateLayoutHint override;
 
     // CursorMovableCandidateList
-    void prevCandidate() override;
-    void nextCandidate() override;
+    auto prevCandidate() -> void override;
+    auto nextCandidate() -> void override;
 
-    CandidateList(Candidates* const data, const size_t page_size);
+    CandidateList(Candidates* const data,size_t page_size);
 };
+} // namespace mikan

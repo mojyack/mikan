@@ -1,6 +1,7 @@
 #pragma once
 #include <mecab.h>
 
+namespace mikan {
 class MeCabModel {
   private:
     bool valid = false;
@@ -11,6 +12,7 @@ class MeCabModel {
     MeCab::Tagger*  tagger;
     MeCab::Lattice* lattice;
     MeCabModel(const char* dictionary, const char* user_dictionary = nullptr, bool is_system_dictionary = false);
-    MeCabModel() {}
+    MeCabModel() = default;
     ~MeCabModel();
 };
+}

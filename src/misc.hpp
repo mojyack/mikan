@@ -3,25 +3,26 @@
 #include <string>
 #include <vector>
 
-std::string                get_user_config_dir();
-std::string                get_user_cache_dir();
-std::optional<std::string> get_dictionary_compiler_path();
-std::u32string             u8tou32(const std::string& u8);
-std::string                u32tou8(const std::u32string& u32);
-std::string                u32tou8(const char32_t u32);
-std::string                kana_to_romaji(const std::string& kana);
-void                       pop_back_u8(std::string& u8);
+namespace mikan {
+auto get_user_config_dir() -> std::string;
+auto get_user_cache_dir() -> std::string;
+auto get_dictionary_compiler_path() -> std::optional<std::string>;
+auto u8tou32(const std::string& u8) -> std::u32string;
+auto u32tou8(const std::u32string& u32) -> std::string;
+auto u32tou8(const char32_t u32) -> std::string;
+auto kana_to_romaji(const std::string& kana) -> std::string;
+auto pop_back_u8(std::string& u8) -> void;
 template <typename T, typename E>
-bool contains(const T& vec, const E& elm) {
+auto contains(const T& vec, const E& elm) -> bool {
     return std::find(vec.begin(), vec.end(), elm) != vec.end();
 }
 template <typename T, typename E, typename P>
-bool contains(const T& vec, const E& elm, P pred) {
-    return std::find_if(vec.begin(), vec.end(), [&elm, &pred](const E& o){return pred(elm, o);}) != vec.end();
+auto contains(const T& vec, const E& elm, P pred) -> bool {
+    return std::find_if(vec.begin(), vec.end(), [&elm, &pred](const E& o) { return pred(elm, o); }) != vec.end();
 }
 
 template <typename T>
-bool emplace_unique(std::vector<T>& vec, const T& elm) {
+auto emplace_unique(std::vector<T>& vec, const T& elm) -> bool {
     if(contains(vec, elm)) {
         return false;
     } else {
@@ -30,7 +31,7 @@ bool emplace_unique(std::vector<T>& vec, const T& elm) {
     }
 }
 template <typename T, typename P>
-bool emplace_unique(std::vector<T>& vec, const T& elm, P pred) {
+auto emplace_unique(std::vector<T>& vec, const T& elm, P pred) -> bool {
     if(contains(vec, elm, pred)) {
         return false;
     } else {
@@ -38,3 +39,4 @@ bool emplace_unique(std::vector<T>& vec, const T& elm, P pred) {
         return true;
     }
 }
+} // namespace mikan

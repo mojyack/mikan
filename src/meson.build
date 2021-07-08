@@ -1,11 +1,18 @@
 mikan_files = files(
+    'candidate-list.cpp',
+    'candidate-word.cpp',
+    'candidate.cpp',
+    'configuration.cpp',
+    'mecab-model.cpp',
+    'mecab-word.cpp',
     'mikan5.cpp',
     'misc.cpp',
-    'candidate.cpp',
-    'mecab-model.cpp',
-    'romaji-table.cpp',
-    'state.cpp',
+    'phrase-candidates.cpp',
     'phrase.cpp',
+    'romaji-table.cpp',
+    'sentence-candidates.cpp',
+    'state-handlers.cpp',
+    'state.cpp',
 )
 
 config_data = configuration_data()

@@ -1,17 +1,19 @@
 #pragma once
-#include <thread>
-
-#include <fcitx/event.h>
 #include <fcitx/inputmethodengine.h>
 #include <fcitx/instance.h>
 
-#include "phrase.hpp"
-#include "share.hpp"
 #include "state.hpp"
-#include "type.hpp"
 
+namespace mikan {
 class MikanContext;
-class History;
+
+struct History {
+    std::string raw;
+    MeCabWord   translation;
+};
+
+using Histories = std::vector<History>;
+
 class MikanEngine final : public fcitx::InputMethodEngine {
   private:
     fcitx::Instance*              instance;
@@ -29,21 +31,22 @@ class MikanEngine final : public fcitx::InputMethodEngine {
     Histories                histories;
     SafeVar<Sentences>       fix_requests;
 
-    bool load_configuration();
-    bool add_history(const History& word);
-    void save_hisotry() const;
-    bool compile_user_dictionary() const;
-    void reload_dictionary();
-    long recalc_cost(const Phrases& phrases) const;
-    void compare_and_fix_dictionary(const Phrases& wants);
+    auto load_configuration() -> bool;
+    auto add_history(const History& word) -> bool;
+    auto save_hisotry() const -> void;
+    auto compile_user_dictionary() const -> bool;
+    auto reload_dictionary() -> void;
+    auto recalc_cost(const Phrases& phrases) const -> long;
+    auto compare_and_fix_dictionary(const Phrases& wants) -> void;
 
   public:
-    Sentences translate_phrases(const Phrases& source, bool best_only, bool ignore_protection = false) const;
-    void      request_fix_dictionary(Phrases wants);
+    auto translate_phrases(const Phrases& source, bool best_only, bool ignore_protection = false) const -> Sentences;
+    auto request_fix_dictionary(Phrases wants) -> void;
 
-    void keyEvent(const fcitx::InputMethodEntry& entry, fcitx::KeyEvent& event) override;
-    void activate(const fcitx::InputMethodEntry& entry, fcitx::InputContextEvent& event) override;
-    void deactivate(const fcitx::InputMethodEntry& entry, fcitx::InputContextEvent& event) override;
+    auto keyEvent(const fcitx::InputMethodEntry& entry, fcitx::KeyEvent& event) -> void override;
+    auto activate(const fcitx::InputMethodEntry& entry, fcitx::InputContextEvent& event) -> void override;
+    auto deactivate(const fcitx::InputMethodEntry& entry, fcitx::InputContextEvent& event) -> void override;
     MikanEngine(fcitx::Instance* instance);
     ~MikanEngine();
 };
+} // namespace mikan

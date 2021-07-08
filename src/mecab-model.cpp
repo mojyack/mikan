@@ -1,12 +1,11 @@
 #include <filesystem>
-#include <stdexcept>
 #include <string>
 
 #include "mecab-model.hpp"
 
-MeCabModel::MeCabModel(const char* dictionary, const char* user_dictionary, bool is_system_dictionary) : is_system_dictionary(is_system_dictionary) {
-    std::string dict_path = "-d ";
-    dict_path += dictionary;
+namespace mikan {
+MeCabModel::MeCabModel(const char* const dictionary, const char* const user_dictionary, const bool is_system_dictionary) : is_system_dictionary(is_system_dictionary) {
+    auto dict_path = std::string("-d ") + dictionary;
     if(user_dictionary != nullptr && std::filesystem::is_regular_file(user_dictionary)) {
         dict_path += " -u ";
         dict_path += user_dictionary;
@@ -27,3 +26,4 @@ MeCabModel::~MeCabModel() {
     delete tagger;
     delete model;
 }
+} // namespace mikan

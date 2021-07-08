@@ -18,19 +18,22 @@ std::string get_xdg_path(const char* xdg_env_name, const char* fallback_dir_name
     return ret;
 }
 } // namespace
-std::string get_user_config_dir() {
+
+namespace mikan {
+auto get_user_config_dir() -> std::string {
     return get_xdg_path("XDG_CONFIG_HOME", ".config");
 }
-std::string get_user_cache_dir() {
+auto get_user_cache_dir() -> std::string {
     return get_xdg_path("XDG_CACHE_HOME", ".cache");
 }
-std::optional<std::string> get_dictionary_compiler_path() {
-    constexpr const char*        COMMAND    = "mecab-config --libexecdir";
-    constexpr size_t             BUFFER_LEN = 128;
-    std::array<char, BUFFER_LEN> buffer;
-    std::string                  result;
+auto get_dictionary_compiler_path() -> std::optional<std::string> {
+    constexpr const auto COMMAND    = "mecab-config --libexecdir";
+    constexpr auto       BUFFER_LEN = 128;
+    auto                 buffer     = std::array<char, BUFFER_LEN>();
+    auto                 result     = std::string();
 
-    FILE* pipe = popen(COMMAND, "r");
+    auto pipe = popen(COMMAND, "r");
+
     if(!pipe) {
         return std::nullopt;
     }
@@ -40,18 +43,18 @@ std::optional<std::string> get_dictionary_compiler_path() {
     if(!result.empty() && result.back() == '\n') {
         result.pop_back();
     }
-    auto return_code = pclose(pipe);
+    const auto return_code = pclose(pipe);
     if(return_code != 0) {
         return std::nullopt;
     } else {
         return result;
     }
 }
-std::u32string u8tou32(const std::string& u8) {
-    std::u32string u32;
+auto u8tou32(const std::string& u8) -> std::u32string {
+    auto u32 = std::u32string();
 
-    auto   p        = &u8[0];
-    size_t len_left = u8.size();
+    auto p        = &u8[0];
+    auto len_left = u8.size();
     while(len_left) {
         int len_read;
         u32 += fcitx_utf8_get_char_validated(p, len_left, &len_read);
@@ -60,8 +63,8 @@ std::u32string u8tou32(const std::string& u8) {
     }
     return u32;
 }
-std::string u32tou8(const std::u32string& u32) {
-    std::string u8;
+auto u32tou8(const std::u32string& u32) -> std::string {
+    auto u8 = std::string();
     for(auto c : u32) {
         char buffer[FCITX_UTF8_MAX_LENGTH] = {};
         fcitx_ucs4_to_utf8(c, buffer);
@@ -69,23 +72,24 @@ std::string u32tou8(const std::u32string& u32) {
     }
     return u8;
 }
-std::string u32tou8(const char32_t u32) {
+auto u32tou8(const char32_t u32) -> std::string {
     char buffer[FCITX_UTF8_MAX_LENGTH] = {};
     fcitx_ucs4_to_utf8(u32, buffer);
     return buffer;
 }
-std::string kana_to_romaji(const std::string& kana) {
+auto kana_to_romaji(const std::string& kana) -> std::string {
     for(uint64_t i = 0; i < romaji_table_limit; ++i) {
         if(romaji_table[i].kana == kana) {
             return u32tou8(romaji_table[i].romaji);
         }
     }
-    printf("unknown %s\n", kana.data());
+    // printf("unknown %s\n", kana.data());
     throw std::runtime_error("unknown kana passed.");
     return std::string();
 }
-void pop_back_u8(std::string& u8) {
+auto pop_back_u8(std::string& u8) -> void {
     auto u32 = u8tou32(u8);
     u32.pop_back();
     u8 = u32tou8(u32);
 }
+} // namespace mikan

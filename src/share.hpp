@@ -1,10 +1,15 @@
 #pragma once
-#include <cstdint>
-#include <vector>
-
 #include "configuration.hpp"
 #include "mecab-model.hpp"
-#include "type.hpp"
+#include "thread.hpp"
+
+namespace mikan {
+enum class InsertSpaceOptions {
+    None,
+    On,
+    Off,
+    Smart,
+};
 
 class Share {
   public:
@@ -15,3 +20,4 @@ class Share {
     KeyConfig                key_config;
     InsertSpaceOptions       insert_space = InsertSpaceOptions::Smart;
 };
+} // namespace mikan

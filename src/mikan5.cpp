@@ -1,52 +1,16 @@
-#include <algorithm>
-#include <array>
-#include <cctype>
-#include <cstddef>
-#include <cstdint>
-#include <cstdio>
-#include <cstdlib>
 #include <filesystem>
 #include <fstream>
-#include <memory>
-#include <mutex>
-#include <optional>
-#include <stdexcept>
-#include <string>
-#include <utility>
-#include <vector>
 
-#include <bits/stdint-uintn.h>
-#include <fcitx-utils/key.h>
-#include <fcitx-utils/keysym.h>
-#include <fcitx-utils/keysymgen.h>
-#include <fcitx-utils/log.h>
-#include <fcitx-utils/textformatflags.h>
-#include <fcitx-utils/utf8.h>
 #include <fcitx/addonfactory.h>
-#include <fcitx/addoninstance.h>
 #include <fcitx/addonmanager.h>
-#include <fcitx/event.h>
-#include <fcitx/inputcontext.h>
-#include <fcitx/inputmethodengine.h>
-#include <fcitx/inputmethodentry.h>
-#include <fcitx/inputpanel.h>
-#include <fcitx/instance.h>
-#include <fcitx/text.h>
-#include <mecab.h>
 
-#include "candidate.hpp"
 #include "config.h"
-#include "configuration.hpp"
-#include "mecab-model.hpp"
 #include "mikan5.hpp"
 #include "misc.hpp"
-#include "phrase.hpp"
-#include "romaji-table.hpp"
-#include "state.hpp"
-#include "type.hpp"
 
+namespace mikan {
 namespace {
-std::optional<History> parse_line_to_history(const std::string& line) {
+auto parse_line_to_history(const std::string& line) -> std::optional<History> {
     size_t comma_index = 0;
     size_t commas[4];
     auto   pos = line.find(',');
@@ -63,10 +27,8 @@ std::optional<History> parse_line_to_history(const std::string& line) {
         // error.
         return std::nullopt;
     }
-    bool    simple = comma_index == 1;
-    History hist;
-    hist.raw = std::string(line.begin() + 0, line.begin() + commas[0]);
-    if(simple) {
+    auto hist = History{.raw = std::string(line.begin() + 0, line.begin() + commas[0])};
+    if(comma_index == 1) {
         hist.translation = MeCabWord(std::string(line.begin() + commas[0] + 1, line.end()));
     } else {
         unsigned short rattr, lattr;
@@ -86,32 +48,16 @@ std::optional<History> parse_line_to_history(const std::string& line) {
     }
     return hist;
 }
-std::vector<History> load_histories(const char* path) {
-    std::vector<History> res;
-    if(!std::filesystem::is_regular_file(path)) {
-        return res;
-    }
-    std::fstream source(path);
-    std::string  l;
-    while(std::getline(source, l)) {
-        auto hist = parse_line_to_history(l);
-        if(!hist.has_value()) {
-            continue;
-        }
-        res.emplace_back(hist.value());
-    }
-    return res;
-}
 struct FeatureConstriant {
     size_t        begin;
     size_t        end;
     const Phrase* phrase;
 };
-std::pair<std::string, std::vector<FeatureConstriant>> build_raw_and_constraints(const Phrases& source, bool ignore_protection) {
-    std::vector<FeatureConstriant> feature_constriants;
-    std::string                    buffer;
+auto build_raw_and_constraints(const Phrases& source, const bool ignore_protection) -> std::pair<std::string, std::vector<FeatureConstriant>> {
+    auto feature_constriants = std::vector<FeatureConstriant>();
+    auto buffer              = std::string();
     for(auto p = source.begin(); p != source.end(); ++p) {
-        const std::string& raw = p->get_raw().get_feature();
+        const auto& raw = p->get_raw().get_feature();
         if(!ignore_protection && p->get_protection_level() != ProtectionLevel::NONE) {
             size_t begin = buffer.size();
             size_t end   = begin + raw.size();
@@ -121,28 +67,24 @@ std::pair<std::string, std::vector<FeatureConstriant>> build_raw_and_constraints
     }
     return std::make_pair(buffer, feature_constriants);
 }
-void set_constraints(MeCab::Lattice& lattice, const std::vector<FeatureConstriant>& constraints) {
-    for(const auto& f : constraints) {
-        auto& phrase = *f.phrase;
-        lattice.set_feature_constraint(f.begin, f.end, phrase.get_protection_level() == ProtectionLevel::PRESERVE_TRANSLATION ? phrase.get_translated().get_feature().data() : "*");
+auto load_histories(const char* path) -> std::vector<History> {
+    auto res = std::vector<History>();
+    if(!std::filesystem::is_regular_file(path)) {
+        return res;
     }
-}
-std::pair<std::string, Phrases> parse_nodes(MeCab::Lattice& lattice, bool needs_parsed_feature) {
-    Phrases     parsed;
-    std::string parsed_feature;
-    for(const auto* node = lattice.bos_node(); node; node = node->next) {
-        if(node->stat == MECAB_BOS_NODE || node->stat == MECAB_EOS_NODE) {
+    auto source = std::fstream(path);
+    auto l      = std::string();
+    while(std::getline(source, l)) {
+        const auto hist = parse_line_to_history(l);
+        if(!hist.has_value()) {
             continue;
         }
-        parsed.emplace_back(node);
-        if(needs_parsed_feature) {
-            parsed_feature += node->feature;
-        }
+        res.emplace_back(hist.value());
     }
-    return std::make_pair(parsed_feature, parsed);
+    return res;
 }
 } // namespace
-bool MikanEngine::load_configuration() {
+auto MikanEngine::load_configuration() -> bool {
     constexpr const char* CONFIG_FILE_NAME              = "mikan.conf";
     constexpr const char* CANDIDATE_PAGE_SIZE           = "candidate_page_size";
     constexpr const char* AUTO_COMMIT_THRESHOLD         = "auto_commit_threshold";
@@ -157,13 +99,12 @@ bool MikanEngine::load_configuration() {
     share.candidate_page_size   = DEFAULT_CANDIDATE_PAGE_SIZE;
     share.auto_commit_threshold = DEFAULT_AUTO_COMMIT_THRESHOLD;
     {
-        std::fstream config(user_config_dir + CONFIG_FILE_NAME);
-        std::string  l;
+        auto config = std::fstream(user_config_dir + CONFIG_FILE_NAME);
+        auto l      = std::string();
         while(std::getline(config, l)) {
-            std::string entry_name;
-            std::string value;
+            std::string entry_name, value;
             {
-                auto space = l.find(' ');
+                const auto space = l.find(' ');
                 if(space == std::string::npos) {
                     continue;
                 }
@@ -175,7 +116,7 @@ bool MikanEngine::load_configuration() {
                 }
                 value = l.substr(space + 1);
             }
-            bool error = false;
+            auto error = false;
             if(entry_name == CANDIDATE_PAGE_SIZE) {
                 try {
                     share.candidate_page_size = std::stoi(value);
@@ -191,7 +132,9 @@ bool MikanEngine::load_configuration() {
             } else if(entry_name == DICTIONARY) {
                 emplace_unique(user_dictionary_paths, user_config_dir + value);
             } else if(entry_name == INSERT_SPACE) {
-                auto option = value == "on" ? InsertSpaceOptions::On : value == "off" ? InsertSpaceOptions::Off : value == "smart" ? InsertSpaceOptions::Smart : InsertSpaceOptions::None;
+                const auto option = value == "on" ? InsertSpaceOptions::On : value == "off" ? InsertSpaceOptions::Off
+                                                                         : value == "smart" ? InsertSpaceOptions::Smart
+                                                                                            : InsertSpaceOptions::None;
                 if(option != InsertSpaceOptions::None) {
                     share.insert_space = option;
                 } else {
@@ -205,9 +148,9 @@ bool MikanEngine::load_configuration() {
     }
     return true;
 }
-bool MikanEngine::add_history(const History& word) {
-    bool   new_word         = true;
-    bool   word_not_changed = true;
+auto MikanEngine::add_history(const History& word) -> bool {
+    auto   new_word         = true;
+    auto   word_not_changed = true;
     size_t duplicates       = 0;
     for(auto& l : histories) {
         if(l.raw != word.raw || !l.translation.has_same_attr(word.translation)) {
@@ -235,7 +178,7 @@ bool MikanEngine::add_history(const History& word) {
     return new_word || !word_not_changed;
 }
 void MikanEngine::save_hisotry() const {
-    std::ofstream file(history_file_path);
+    auto file = std::ofstream(history_file_path);
     for(const auto& l : histories) {
         std::string line;
         line += l.raw + ",";
@@ -247,13 +190,13 @@ void MikanEngine::save_hisotry() const {
     }
 }
 bool MikanEngine::compile_user_dictionary() const {
-    std::string csv = "/tmp/mikan-tmp";
+    auto csv = std::string("/tmp/mikan-tmp");
     while(std::filesystem::exists(csv)) {
         csv += '.';
     }
 
     {
-        std::vector<History> to_compile;
+        auto to_compile = std::vector<History>();
         for(const auto& d : user_dictionary_paths) {
             auto hists = load_histories(d.data());
             std::copy(hists.begin(), hists.end(), std::back_inserter(to_compile));
@@ -282,6 +225,26 @@ bool MikanEngine::compile_user_dictionary() const {
     std::filesystem::remove(csv);
     return result_code == 0;
 }
+auto set_constraints(MeCab::Lattice& lattice, const std::vector<FeatureConstriant>& constraints) -> void {
+    for(const auto& f : constraints) {
+        auto& phrase = *f.phrase;
+        lattice.set_feature_constraint(f.begin, f.end, phrase.get_protection_level() == ProtectionLevel::PRESERVE_TRANSLATION ? phrase.get_translated().get_feature().data() : "*");
+    }
+}
+auto parse_nodes(MeCab::Lattice& lattice, const bool needs_parsed_feature) -> std::pair<std::string, Phrases> {
+    auto parsed         = Phrases();
+    auto parsed_feature = std::string();
+    for(const auto* node = lattice.bos_node(); node; node = node->next) {
+        if(node->stat == MECAB_BOS_NODE || node->stat == MECAB_EOS_NODE) {
+            continue;
+        }
+        parsed.emplace_back(node);
+        if(needs_parsed_feature) {
+            parsed_feature += node->feature;
+        }
+    }
+    return std::make_pair(parsed_feature, parsed);
+}
 void MikanEngine::reload_dictionary() {
     auto new_dic = new MeCabModel(system_dictionary_path.data(), history_dictionary_path.data(), true);
     auto old_dic = share.primary_vocabulary.load();
@@ -290,7 +253,7 @@ void MikanEngine::reload_dictionary() {
         delete old_dic;
     }
 }
-long MikanEngine::recalc_cost(const Phrases& source) const {
+auto MikanEngine::recalc_cost(const Phrases& source) const -> long {
     // source.back().get_translated().get_total_cost() sould be total cost.
     // but it seems that mecab sets incorrect cost values when parsing delimiter positions and words at the same time.
     // so we have to specify constraints to all words before parsing to get the correct cost.
@@ -312,7 +275,7 @@ long MikanEngine::recalc_cost(const Phrases& source) const {
     dic->tagger->parse(&lattice);
     return parse_nodes(lattice, true).second.back().get_translated().get_total_cost();
 }
-void MikanEngine::compare_and_fix_dictionary(const Phrases& wants) {
+auto MikanEngine::compare_and_fix_dictionary(const Phrases& wants) -> void {
     {
         // before comparing, add words which is unknown and not from system dictionary.
         bool added = false;
@@ -330,15 +293,15 @@ void MikanEngine::compare_and_fix_dictionary(const Phrases& wants) {
         }
     }
 
-    const long source_cost = recalc_cost(wants);
+    const auto source_cost = recalc_cost(wants);
     while(1) {
-        Histories to_decrements;
-        Phrases   best               = translate_phrases(wants, true, true)[0];
-        bool      all_phrases_passed = true;
+        auto to_decrements      = Histories();
+        auto best               = translate_phrases(wants, true, true)[0];
+        auto all_phrases_passed = true;
         for(auto& p : best) {
             p.set_protection_level(ProtectionLevel::NONE);
         }
-        const long total_diff = source_cost - recalc_cost(best);
+        const auto total_diff = source_cost - recalc_cost(best);
         for(size_t i = 0; i < wants.size(); ++i) {
             Phrase&       pb = best[i];
             const Phrase& pw = wants[i];
@@ -346,19 +309,19 @@ void MikanEngine::compare_and_fix_dictionary(const Phrases& wants) {
                 continue;
             }
             all_phrases_passed = false;
-            std::string left;
+            auto left          = std::string();
             for(size_t p = i; p < best.size(); ++p) {
                 left += best[p].get_raw().get_feature();
             }
             auto& sw = pw.get_raw().get_feature();
             to_decrements.emplace_back(History{sw, pw.get_translated()});
 
-            pb.get_mutable() = left.substr(0, sw.size());
+            pb.get_mutable_feature() = left.substr(0, sw.size());
             pb.override_translated(pw.get_translated());
             pb.set_protection_level(ProtectionLevel::PRESERVE_TRANSLATION);
             if(i + 1 < wants.size()) {
                 best.resize(i + 2);
-                best[i + 1].get_mutable() = left.substr(sw.size());
+                best[i + 1].get_mutable_feature() = left.substr(sw.size());
             } else {
                 best.resize(i + 1);
             }
@@ -379,30 +342,30 @@ void MikanEngine::compare_and_fix_dictionary(const Phrases& wants) {
         }
         compile_user_dictionary();
         reload_dictionary();
-   }
+    }
 }
-Sentences MikanEngine::translate_phrases(const Phrases& source, bool best_only, bool ignore_protection) const {
+Sentences MikanEngine::translate_phrases(const Phrases& source, const bool best_only, const bool ignore_protection) const {
     constexpr size_t N_BEST_LIMIT = 30;
 
-    Sentences  result;
+    auto       result      = Sentences();
     auto       source_data = build_raw_and_constraints(source, ignore_protection);
     const auto buffer      = std::move(source_data.first);
     const auto constraints = std::move(source_data.second);
     {
-        std::lock_guard<std::mutex> lock(share.primary_vocabulary.mutex);
+        const auto lock = std::lock_guard<std::mutex>(share.primary_vocabulary.mutex);
 
-        auto& dic     = share.primary_vocabulary.data;
-        auto& lattice = *dic->lattice;
+        const auto& dic     = share.primary_vocabulary.data;
+        auto&       lattice = *dic->lattice;
         lattice.set_request_type(best_only ? MECAB_ONE_BEST : MECAB_NBEST);
         lattice.set_sentence(buffer.data());
         set_constraints(lattice, constraints);
         dic->tagger->parse(&lattice);
         std::vector<std::string> result_features;
         while(1) {
-            auto        parsed_nodes   = parse_nodes(lattice, true);
-            std::string parsed_feature = std::move(parsed_nodes.first);
-            Phrases     parsed         = std::move(parsed_nodes.second);
-            bool        matched        = false;
+            const auto parsed_nodes   = parse_nodes(lattice, true);
+            const auto parsed_feature = std::string(std::move(parsed_nodes.first));
+            const auto parsed         = Phrases(std::move(parsed_nodes.second));
+            auto       matched        = false;
             for(const auto& r : result_features) {
                 if(r == parsed_feature) {
                     matched = true;
@@ -447,23 +410,23 @@ Sentences MikanEngine::translate_phrases(const Phrases& source, bool best_only, 
 
     return result;
 }
-void MikanEngine::request_fix_dictionary(Phrases wants) {
-    std::lock_guard<std::mutex> lock(fix_requests.mutex);
+auto MikanEngine::request_fix_dictionary(Phrases wants) -> void {
+    auto lock = std::lock_guard<std::mutex>(fix_requests.mutex);
     fix_requests.data.emplace_back(wants);
     dictionary_update_event.wakeup();
 }
-void MikanEngine::keyEvent(const fcitx::InputMethodEntry& entry, fcitx::KeyEvent& event) {
+auto MikanEngine::keyEvent(const fcitx::InputMethodEntry& entry, fcitx::KeyEvent& event) -> void {
     auto& context = *event.inputContext();
     auto  state   = context.propertyFor(&factory);
     state->handle_key_event(event);
 }
-void MikanEngine::activate(const fcitx::InputMethodEntry& entry, fcitx::InputContextEvent& event) {
+auto MikanEngine::activate(const fcitx::InputMethodEntry& entry, fcitx::InputContextEvent& event) -> void {
     auto& context = *event.inputContext();
     auto  state   = context.propertyFor(&factory);
     state->handle_activate();
     event.accept();
 }
-void MikanEngine::deactivate(const fcitx::InputMethodEntry& entry, fcitx::InputContextEvent& event) {
+auto MikanEngine::deactivate(const fcitx::InputMethodEntry& entry, fcitx::InputContextEvent& event) -> void {
     auto& context = *event.inputContext();
     auto  state   = context.propertyFor(&factory);
     state->handle_deactivate();
@@ -570,10 +533,11 @@ MikanEngine::~MikanEngine() {
 
 class MikanEngineFactory : public fcitx::AddonFactory {
   public:
-    fcitx::AddonInstance* create(fcitx::AddonManager* manager) override;
+    auto create(fcitx::AddonManager* manager) -> fcitx::AddonInstance* override {
+        // fcitx::registerDomain("mikan", FCITX_INSTALL_LOCALEDIR);
+        return new MikanEngine(manager->instance());
+    }
 };
-fcitx::AddonInstance* MikanEngineFactory::create(fcitx::AddonManager* manager) {
-    //    fcitx::registerDomain("mikan", FCITX_INSTALL_LOCALEDIR);
-    return new MikanEngine(manager->instance());
-}
-FCITX_ADDON_FACTORY(MikanEngineFactory);
+} // namespace mikan
+
+FCITX_ADDON_FACTORY(mikan::MikanEngineFactory);
