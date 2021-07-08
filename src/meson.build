@@ -9,6 +9,7 @@ mikan_files = files(
     'misc.cpp',
     'phrase-candidates.cpp',
     'phrase.cpp',
+    'romaji-index.cpp',
     'romaji-table.cpp',
     'sentence-candidates.cpp',
     'state-handlers.cpp',

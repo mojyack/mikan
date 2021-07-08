@@ -37,102 +37,29 @@ auto MikanState::handle_romaji(const fcitx::KeyEvent& event) -> bool {
     if(merge_branch_sentences()) {
         move_cursor_back();
     }
-    auto filter = [](std::vector<size_t>& filtered, size_t i, size_t insert_pos, char32_t romaji) -> bool {
-        enum class JudgeResult {
-            FAIL,
-            CONTINUE,
-            MATCH,
-        };
-        auto judge = [romaji, insert_pos](const RomajiKana& romaji_kana) -> JudgeResult {
-            if(romaji_kana.romaji.size() <= insert_pos) {
-                return JudgeResult::FAIL;
-            }
-            if(romaji_kana.romaji[insert_pos] == romaji) {
-                if(romaji_kana.romaji.size() == insert_pos + 1) {
-                    return JudgeResult::MATCH;
-                }
-                return JudgeResult::CONTINUE;
-            };
-            return JudgeResult::FAIL;
-        };
-        switch(judge(romaji_table[i])) {
-        case JudgeResult::FAIL:
+
+    to_kana += romaji_8;
+    auto exact = romaji_index.filter(to_kana);
+    if(exact == &romaji_table[romaji_table_limit]) {
+        to_kana = romaji_8;
+        exact = romaji_index.filter(to_kana);
+        if(exact == &romaji_table[romaji_table_limit]) {
+            to_kana.clear();
             return false;
-        case JudgeResult::CONTINUE:
-            filtered.emplace_back(i);
-            return false;
-        case JudgeResult::MATCH:
-            return true;
         }
-    };
-#define FILTER(f, i, p, r)          \
-    if(filter(f, i, p, r)) {        \
-        matched = &romaji_table[i]; \
-        break;                      \
-    }
-#define RESET(f, p, r)                               \
-    for(size_t i = 0; i < romaji_table_limit; ++i) { \
-        FILTER(f, i, p, r)                           \
-    }
-#define CONTINUE(f, p, r)                                                                    \
-    for(auto itr = romaji_table_indexs.cbegin(); itr != romaji_table_indexs.cend(); ++itr) { \
-        FILTER(f, *itr, p, r)                                                                \
     }
 
-    auto       filtered = std::vector<size_t>();
-    auto       matched  = (const RomajiKana*)(nullptr);
-    const auto romaji   = fcitx_utf8_get_char_validated(romaji_8.data(), romaji_8.size(), nullptr);
-    if(romaji_table_indexs.empty()) {
-        if(to_kana.empty()) {
-            RESET(romaji_table_indexs, 0, romaji)
+    apply_candidates();
+    delete_surrounding_text();
+    if(exact != nullptr) {
+        append_kana(exact->kana);
+        if(exact->refill != nullptr) {
+            to_kana = exact->refill;
         } else {
-            RESET(romaji_table_indexs, 0, to_kana[0])
-            for(size_t index = 1; index < to_kana.size(); index += 1) {
-                CONTINUE(filtered, index, fcitx_utf8_get_char_validated(&to_kana[index], 1, nullptr))
-            }
-            CONTINUE(filtered, to_kana.size(), romaji)
-        }
-    } else {
-        const auto insert_pos = fcitx_utf8_strlen(to_kana.data());
-        CONTINUE(filtered, insert_pos, romaji)
-    }
-    if(matched == nullptr) {
-        romaji_table_indexs = std::move(filtered);
-        if(romaji_table_indexs.empty()) {
-            // no kana matched with current to_kana. try once more without it.
-            RESET(romaji_table_indexs, 0, romaji)
-            if(!romaji_table_indexs.empty() || matched != nullptr) {
-                to_kana.clear();
-            }
-        }
-        if(romaji_table_indexs.size() == 1) {
-            // only one result.
-            matched = &romaji_table[romaji_table_indexs[0]];
+            to_kana.clear();
         }
     }
-    if(!romaji_table_indexs.empty() || matched != nullptr) {
-        apply_candidates();
-        delete_surrounding_text();
-        if(matched != nullptr) {
-            append_kana(matched->kana);
-            romaji_table_indexs.clear();
-            if(matched->refill != nullptr) {
-                RESET(romaji_table_indexs, 0, fcitx_utf8_get_char_validated(matched->refill, std::strlen(matched->refill), nullptr));
-                to_kana = matched->refill;
-            } else {
-                to_kana.clear();
-            }
-
-        } else {
-            to_kana += romaji_8;
-        }
-        return true;
-    } else {
-        return false;
-    }
-#undef FILTER
-#undef RESET
-#undef CONTINUE
+    return true;
 }
 auto MikanState::handle_delete(const fcitx::KeyEvent& event) -> bool {
     if(!share.key_config.match(Actions::BACKSPACE, event)) {

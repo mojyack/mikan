@@ -80,7 +80,7 @@ auto u32tou8(const char32_t u32) -> std::string {
 auto kana_to_romaji(const std::string& kana) -> std::string {
     for(uint64_t i = 0; i < romaji_table_limit; ++i) {
         if(romaji_table[i].kana == kana) {
-            return u32tou8(romaji_table[i].romaji);
+            return romaji_table[i].romaji;
         }
     }
     // printf("unknown %s\n", kana.data());
