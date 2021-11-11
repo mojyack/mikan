@@ -8,7 +8,7 @@ auto CandidateList::index_to_global(const size_t idx) const -> size_t {
     return idx + currentPage() * page_size;
 }
 auto CandidateList::label(const int idx) const -> const fcitx::Text& {
-    const static fcitx::Text label("");
+    const static auto label = fcitx::Text("");
     return label;
 }
 auto CandidateList::candidate(const int idx) const -> const CandidateWord& {
@@ -54,15 +54,12 @@ auto CandidateList::currentPage() const -> int {
     return data->get_index() / page_size;
 }
 auto CandidateList::setPage(int page) -> void {
-
     data->set_index(page * page_size);
 }
 auto CandidateList::layoutHint() const -> fcitx::CandidateLayoutHint {
-
     return fcitx::CandidateLayoutHint::NotSet;
 }
 auto CandidateList::prevCandidate() -> void {
-
     data->move_index(-1);
 }
 auto CandidateList::nextCandidate() -> void {

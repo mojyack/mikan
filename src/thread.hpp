@@ -5,42 +5,55 @@
 
 namespace mikan {
 template <typename T>
-struct SafeVar {
+struct Critical {
     mutable std::mutex mutex;
     T                  data;
 
-    void store(T src) {
-        std::lock_guard<std::mutex> lock(mutex);
-        data = src;
+    auto get_lock() const -> std::lock_guard<std::mutex> {
+        return std::lock_guard<std::mutex>(mutex);
     }
-    T load() const {
-        std::lock_guard<std::mutex> lock(mutex);
+    auto store(T src) -> void {
+        const auto lock = get_lock();
+        data            = src;
+    }
+    auto load() const -> T {
+        const auto lock = get_lock();
         return data;
     }
-    SafeVar(T src) : data(src) {}
-    SafeVar() {}
+    auto replace(T src = T()) -> T {
+        const auto lock = get_lock();
+        std::swap(data, src);
+        return src;
+    }
+    auto operator->() -> T* {
+        return &data;
+    }
+    auto operator*() -> T& {
+        return data;
+    }
+    Critical(T src) : data(src) {}
+    Critical() {}
 };
 
-class ConditionalVariable {
+class Event {
   private:
     std::condition_variable condv;
-    SafeVar<bool>           waked;
+    Critical<bool>          waked;
 
   public:
-    void wait() {
+    auto wait() -> void {
         waked.store(false);
-        std::unique_lock<std::mutex> lock(waked.mutex);
+        auto lock = std::unique_lock<std::mutex>(waked.mutex);
         condv.wait(lock, [this]() { return waked.data; });
     }
-    template <typename D>
-    bool wait_for(D duration) {
+    auto wait_for(auto duration) -> bool {
         waked.store(false);
-        std::unique_lock<std::mutex> lock(waked.mutex);
+        auto lock = std::unique_lock<std::mutex>(waked.mutex);
         return condv.wait_for(lock, duration, [this]() { return waked.data; });
     }
-    void wakeup() {
+    auto wakeup() -> void {
         waked.store(true);
         condv.notify_all();
     }
 };
-} // namespace xrun
+} // namespace mikan

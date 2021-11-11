@@ -17,7 +17,7 @@ auto begin_with(const std::u32string& str, const std::u32string& key) -> bool {
     if(str.size() < key.size()) {
         return false;
     }
-    for(size_t i = 0; i < key.size(); ++i) {
+    for(auto i = size_t(0); i < key.size(); i += 1) {
         if(str[i] != key[i]) {
             return false;
         }
@@ -69,8 +69,8 @@ auto MikanState::handle_delete(const fcitx::KeyEvent& event) -> bool {
         pop_back_u8(to_kana);
         return true;
     } else {
-        Phrase* current_phrase;
-        size_t  cursor_in_phrase;
+        auto current_phrase   = (Phrase*)(nullptr);
+        auto cursor_in_phrase = size_t();
         calc_phrase_in_cursor(&current_phrase, &cursor_in_phrase);
         if(current_phrase == nullptr) {
             return false;
@@ -78,7 +78,7 @@ auto MikanState::handle_delete(const fcitx::KeyEvent& event) -> bool {
         auto raw   = u8tou32(current_phrase->get_raw().get_feature());
         auto bytes = size_t(0);
         auto kana  = raw.begin();
-        for(; kana != raw.end(); ++kana) {
+        for(; kana != raw.end(); kana += 1) {
             bytes += fcitx_ucs4_char_len(*kana);
             if(bytes == cursor_in_phrase) {
                 break;
@@ -86,11 +86,11 @@ auto MikanState::handle_delete(const fcitx::KeyEvent& event) -> bool {
         }
         if(kana != raw.end()) {
             // disassembly the kana to romaji and pop back.
-            char kana8[FCITX_UTF8_MAX_LENGTH] = {};
-            fcitx_ucs4_to_utf8(*kana, kana8);
+            auto kana8 = std::array<char, FCITX_UTF8_MAX_LENGTH>();
+            fcitx_ucs4_to_utf8(*kana, kana8.data());
             auto success = true;
             try {
-                to_kana = kana_to_romaji(kana8);
+                to_kana = kana_to_romaji(kana8.data());
             } catch(const std::runtime_error&) {
                 success = false;
             }
@@ -152,7 +152,7 @@ auto MikanState::handle_candidates(const fcitx::KeyEvent& event) -> bool {
     if(!share.key_config.match(actions, event)) {
         return false;
     }
-    Phrase* current_phrase;
+    auto current_phrase = (Phrase*)(nullptr);
     calc_phrase_in_cursor(&current_phrase, nullptr);
     if(current_phrase == nullptr) {
         return false;
@@ -167,8 +167,8 @@ auto MikanState::handle_candidates(const fcitx::KeyEvent& event) -> bool {
     // get candidate list.
     if(!current_phrase->is_candidates_initialized()) {
         calc_phrase_in_cursor(&current_phrase, nullptr);
-        std::lock_guard<std::mutex> lock(share.primary_vocabulary.mutex);
-        std::vector<MeCabModel*>    dic = {share.primary_vocabulary.data};
+        const auto lock = share.primary_vocabulary.get_lock();
+        auto       dic  = std::vector<MeCabModel*>{share.primary_vocabulary.data};
         std::copy(share.additional_vocabularies.begin(), share.additional_vocabularies.end(), std::back_inserter(dic));
         current_phrase->reset_candidates(PhraseCandidates(dic, current_phrase->get_raw().get_feature(), false));
         current_phrase->set_protection_level(ProtectionLevel::PRESERVE_TRANSLATION);
@@ -217,10 +217,10 @@ auto MikanState::handle_move_cursor_phrase(const fcitx::KeyEvent& event) -> bool
     if(!share.key_config.match(actions, event)) {
         return false;
     }
-    const auto forward = share.key_config.match(Actions::PHRASE_NEXT, event);
-    Phrase*    current_phrase;
-    Phrase*    new_phrase;
-    size_t     cursor_in_phrase;
+    const auto forward          = share.key_config.match(Actions::PHRASE_NEXT, event);
+    auto       current_phrase   = (Phrase*)(nullptr);
+    auto       new_phrase       = (Phrase*)(nullptr);
+    auto       cursor_in_phrase = size_t();
     calc_phrase_in_cursor(&current_phrase, &cursor_in_phrase);
     if(current_phrase == nullptr) {
         return false;
@@ -233,7 +233,7 @@ auto MikanState::handle_move_cursor_phrase(const fcitx::KeyEvent& event) -> bool
     // move cursor.
     to_kana.clear();
     cursor = 0;
-    for(auto p = &(*phrases)[0]; p <= new_phrase; ++p) {
+    for(auto p = &(*phrases)[0]; p <= new_phrase; p += 1) {
         cursor += p->get_raw().get_feature().size();
     }
     apply_candidates();
@@ -247,22 +247,22 @@ auto MikanState::handle_split_phrase(const fcitx::KeyEvent& event) -> bool {
 
     make_branch_sentence();
 
-    Phrase* current_phrase;
-    size_t  cursor_in_phrase;
+    auto current_phrase   = (Phrase*)(nullptr);
+    auto cursor_in_phrase = size_t();
     calc_phrase_in_cursor(&current_phrase, &cursor_in_phrase);
     if(current_phrase == nullptr || fcitx_utf8_strlen(current_phrase->get_raw().get_feature().data()) <= 1) {
         return false;
     }
 
     // insert a new phrase right after the selected phrase.
-    const size_t phrase_index = current_phrase - &(*phrases)[0];
+    const auto phrase_index = current_phrase - &(*phrases)[0];
 
     phrases->insert(phrases->begin() + phrase_index + 1, Phrase());
-    Phrase *a = &(*phrases)[phrase_index], *b = &(*phrases)[phrase_index + 1];
+    const auto a = &(*phrases)[phrase_index], b = &(*phrases)[phrase_index + 1];
 
     // split 'a' into two.
-    const auto   raw_32      = u8tou32(a->get_raw().get_feature());
-    const size_t split_pos   = share.key_config.match(Actions::SPLIT_PHRASE_LEFT, event) ? 1 : raw_32.size() - 1;
+    const auto raw_32        = u8tou32(a->get_raw().get_feature());
+    const auto split_pos     = share.key_config.match(Actions::SPLIT_PHRASE_LEFT, event) ? 1 : raw_32.size() - 1;
     b->get_mutable_feature() = u32tou8(raw_32.substr(split_pos));
     a->get_mutable_feature() = u32tou8(raw_32.substr(0, split_pos));
 
@@ -283,25 +283,25 @@ auto MikanState::handle_merge_phrase(const fcitx::KeyEvent& event) -> bool {
 
     make_branch_sentence();
 
-    Phrase* current_phrase;
-    size_t  cursor_in_phrase;
+    auto current_phrase   = (Phrase*)(nullptr);
+    auto cursor_in_phrase = size_t();
     calc_phrase_in_cursor(&current_phrase, &cursor_in_phrase);
     if(current_phrase == nullptr) {
         return true;
     }
     const auto left         = share.key_config.match(Actions::MERGE_PHRASE_LEFT, event);
-    Phrase*    merge_phrase = current_phrase + (left ? -1 : 1);
+    const auto merge_phrase = current_phrase + (left ? -1 : 1);
     if(merge_phrase < &(*phrases)[0] || merge_phrase > &phrases->back()) {
         return true;
     }
 
     // merge 'current_phrase' and 'merge_phrase' into 'current_phrase'.
-    std::string a = merge_phrase->get_raw().get_feature(), b = current_phrase->get_raw().get_feature();
+    const auto a = merge_phrase->get_raw().get_feature(), b = current_phrase->get_raw().get_feature();
     current_phrase->get_mutable_feature() = left ? a + b : b + a;
     current_phrase->set_protection_level(ProtectionLevel::PRESERVE_SEPARATION);
 
     // remove 'merge_phrase'.
-    const size_t phrase_index = merge_phrase - &(*phrases)[0];
+    const auto phrase_index = merge_phrase - &(*phrases)[0];
     phrases->erase(phrases->begin() + phrase_index);
 
     apply_candidates();
@@ -316,13 +316,13 @@ auto MikanState::handle_move_separator(const fcitx::KeyEvent& event) -> bool {
 
     make_branch_sentence();
 
-    Phrase* current_phrase;
-    size_t  cursor_in_phrase;
+    auto current_phrase   = (Phrase*)(nullptr);
+    auto cursor_in_phrase = size_t();
     calc_phrase_in_cursor(&current_phrase, &cursor_in_phrase);
     if(current_phrase == nullptr) {
         return true;
     }
-    Phrase* move_phrase = current_phrase + 1;
+    const auto move_phrase = current_phrase + 1;
     if(move_phrase > &phrases->back()) {
         return true;
     }
@@ -331,8 +331,8 @@ auto MikanState::handle_move_separator(const fcitx::KeyEvent& event) -> bool {
     cursor += current_phrase->get_raw().get_feature().size() - cursor_in_phrase;
 
     // move cursor and separator.
-    size_t     moved_chara_size;
-    const auto left = share.key_config.match(Actions::MOVE_SEPARATOR_LEFT, event);
+    auto       moved_chara_size = size_t();
+    const auto left             = share.key_config.match(Actions::MOVE_SEPARATOR_LEFT, event);
     if(left) {
         auto current_u32 = u8tou32(current_phrase->get_raw().get_feature());
         moved_chara_size = fcitx_ucs4_char_len(current_u32.back());
@@ -366,7 +366,7 @@ auto MikanState::handle_convert_katakana(const fcitx::KeyEvent& event) -> bool {
 
     make_branch_sentence();
 
-    Phrase* current_phrase;
+    auto current_phrase = (Phrase*)(nullptr);
     calc_phrase_in_cursor(&current_phrase);
     if(current_phrase == nullptr) {
         return false;
@@ -376,11 +376,11 @@ auto MikanState::handle_convert_katakana(const fcitx::KeyEvent& event) -> bool {
     const auto& raw      = current_phrase->get_raw().get_feature();
     auto        u32      = u8tou32(raw);
     auto        options  = std::vector<const HiraKata*>();
-    size_t      char_num = 0;
-    for(auto c = u32.begin(); c != u32.end(); ++c) {
+    auto        char_num = size_t(0);
+    for(auto c = u32.begin(); c != u32.end(); c += 1) {
         auto term     = std::u32string(c - char_num, c + 1);
         auto filtered = std::vector<const HiraKata*>();
-        for(size_t i = 0; i < hiragana_katakana_table_limit; ++i) {
+        for(auto i = size_t(0); i < hiragana_katakana_table_limit; i += 1) {
             const auto& hirakata = hiragana_katakana_table[i];
             if(begin_with(hirakata.hiragana, term)) {
                 emplace_unique(filtered, &hirakata, [](const HiraKata* h, const HiraKata* o) {
@@ -416,9 +416,9 @@ auto MikanState::handle_convert_katakana(const fcitx::KeyEvent& event) -> bool {
     }
     {
         // try to get word information(if exists in dictionary).
-        auto  lock    = std::lock_guard<std::mutex>(share.primary_vocabulary.mutex);
-        auto& dic     = share.primary_vocabulary.data;
-        auto& lattice = *dic->lattice;
+        const auto lock    = share.primary_vocabulary.get_lock();
+        auto&      dic     = share.primary_vocabulary.data;
+        auto&      lattice = *dic->lattice;
         lattice.set_request_type(MECAB_ONE_BEST);
         lattice.set_sentence(raw.data());
         lattice.set_feature_constraint(0, raw.size(), katakana.data());

@@ -28,7 +28,7 @@ auto SentenceCandidates::get_current_ptr() -> Phrases* {
     }
     return &data[index];
 }
-auto SentenceCandidates::operator[](size_t index) -> Phrases& {
+auto SentenceCandidates::operator[](const size_t index) -> Phrases& {
     return data[index];
 }
 auto SentenceCandidates::clear() -> void {

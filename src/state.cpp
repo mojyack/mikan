@@ -5,13 +5,13 @@
 #include "state.hpp"
 
 namespace mikan {
-auto MikanState::commit_phrase(const Phrase* phrase) -> void {
+auto MikanState::commit_phrase(const Phrase* const phrase) -> void {
     const auto& translated = phrase->get_translated();
     context.commitString(translated.get_feature());
 }
 auto MikanState::commit_all_phrases() -> void {
     merge_branch_sentences();
-    Phrase* current;
+    auto current = (Phrase*)(nullptr);
     calc_phrase_in_cursor(&current);
     for(const auto& p : *phrases) {
         commit_phrase(&p);
@@ -44,7 +44,7 @@ auto MikanState::merge_branch_sentences() -> bool {
         return false;
     }
 }
-auto MikanState::shrink_sentences(bool reserve_one) -> void {
+auto MikanState::shrink_sentences(const bool reserve_one) -> void {
     if(phrases == nullptr) {
         return;
     }
@@ -67,7 +67,7 @@ auto MikanState::delete_surrounding_text() -> bool {
     context.deleteSurroundingText(0, text.anchor() - text.cursor());
     return true;
 }
-auto MikanState::calc_phrase_in_cursor(Phrase** phrase, size_t* cursor_in_phrase) const -> void {
+auto MikanState::calc_phrase_in_cursor(Phrase** const phrase, size_t* const cursor_in_phrase) const -> void {
     if(phrases == nullptr) {
         *phrase = nullptr;
         if(cursor_in_phrase != nullptr) {
@@ -75,9 +75,9 @@ auto MikanState::calc_phrase_in_cursor(Phrase** phrase, size_t* cursor_in_phrase
         }
         return;
     }
-    size_t total_bytes = 0;
+    auto total_bytes = size_t(0);
     for(const auto& p : *phrases) {
-        const size_t phrase_end = total_bytes + p.get_raw().get_feature().size();
+        const auto phrase_end = total_bytes + p.get_raw().get_feature().size();
         if(cursor > total_bytes && cursor <= phrase_end) {
             *phrase = const_cast<Phrase*>(&p);
             if(cursor_in_phrase != nullptr) {
@@ -106,8 +106,8 @@ auto MikanState::append_kana(const std::string& kana) -> void {
         phrases = sentences.get_current_ptr();
         cursor  = kana.size();
     } else {
-        Phrase* current;
-        size_t  cursor_pos;
+        auto current    = (Phrase*)(nullptr);
+        auto cursor_pos = size_t();
         calc_phrase_in_cursor(&current, &cursor_pos);
         if(current->get_protection_level() != ProtectionLevel::NONE) {
             phrases->emplace_back();
@@ -122,7 +122,7 @@ auto MikanState::append_kana(const std::string& kana) -> void {
     *phrases = translate_phrases(*phrases, true)[0];
     auto_commit();
 }
-auto MikanState::translate_phrases(const Phrases& source, bool best_only) -> Sentences {
+auto MikanState::translate_phrases(const Phrases& source, const bool best_only) -> Sentences {
     if(phrases == nullptr) {
         return Sentences();
     }
@@ -137,11 +137,11 @@ auto MikanState::build_preedit_text() const -> fcitx::Text {
         return preedit;
     }
 
-    Phrase* current;
-    size_t  cursor_in_phrase;
-    size_t  preedit_cursor = 0;
+    auto current          = (Phrase*)(nullptr);
+    auto cursor_in_phrase = size_t();
+    auto preedit_cursor   = size_t(0);
     calc_phrase_in_cursor(&current, &cursor_in_phrase);
-    for(size_t i = 0, limit = phrases->size(); i < limit; ++i) {
+    for(auto i = size_t(0), limit = phrases->size(); i < limit; i += 1) {
         const auto& phrase = (*phrases)[i];
         auto        text   = std::string();
         auto        format = fcitx::TextFormatFlag::NoFlag;
@@ -162,8 +162,8 @@ auto MikanState::build_preedit_text() const -> fcitx::Text {
             text   = phrase.get_translated().get_feature();
             preedit_cursor += text.size();
         }
-        const bool has_branches    = sentences.get_data_size() >= 2;
-        const bool is_current_last = current == &phrases->back();
+        const auto has_branches    = sentences.get_data_size() >= 2;
+        const auto is_current_last = current == &phrases->back();
         const auto insert_space    = share.insert_space == InsertSpaceOptions::On || (share.insert_space == InsertSpaceOptions::Smart && (!is_current_last || has_branches));
         if(&phrase == current && insert_space) {
             text = "[" + text + "]";
@@ -172,7 +172,7 @@ auto MikanState::build_preedit_text() const -> fcitx::Text {
         // add space between phrases.
         if(insert_space) {
             auto space = std::string("|");
-            preedit.append(space);
+            preedit.append("|");
             preedit_cursor += space.size();
         }
     }
@@ -189,10 +189,10 @@ auto MikanState::auto_commit() -> void {
     if(phrases == nullptr || phrases->size() < share.auto_commit_threshold || phrases->size() < 2) {
         return;
     }
-    const size_t commit_num = phrases->size() - share.auto_commit_threshold + 1;
-    size_t       on_holds   = 0;
-    bool         commited   = false;
-    for(size_t i = 0; i <= commit_num; ++i) {
+    const auto commit_num = phrases->size() - share.auto_commit_threshold + 1;
+    auto       on_holds   = size_t(0);
+    auto       commited   = false;
+    for(auto i = size_t(0); i <= commit_num; i += 1) {
         // we have to ensure that the following phrases' translations will be the same without this phrase.
         if((*phrases)[on_holds].get_protection_level() != ProtectionLevel::PRESERVE_TRANSLATION) {
             std::vector<Phrase> copy(phrases->begin() + on_holds + 1, phrases->end());
@@ -206,7 +206,7 @@ auto MikanState::auto_commit() -> void {
         }
 
         // commit phrases.
-        for(size_t i = 0; i <= on_holds; ++i) {
+        for(auto i = size_t(0); i <= on_holds; i += 1) {
             commit_phrase(&(*phrases)[0]);
             const auto commited_bytes = (*phrases)[0].get_raw().get_feature().size();
             if(cursor >= commited_bytes) {
@@ -231,7 +231,7 @@ auto MikanState::reset() -> void {
 }
 auto MikanState::handle_key_event(fcitx::KeyEvent& event) -> void {
     auto& panel  = context.inputPanel();
-    bool  accept = false;
+    auto  accept = false;
     for(auto h : handlers) {
         if(h(this, event)) {
             accept = true;

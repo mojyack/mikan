@@ -27,9 +27,9 @@ class MikanEngine final : public fcitx::InputMethodEngine {
     std::vector<std::string> user_dictionary_paths;
     std::thread              dictionary_updater;
     bool                     finish_dictionary_updater;
-    ConditionalVariable      dictionary_update_event;
+    Event                    dictionary_update_event;
     Histories                histories;
-    SafeVar<Sentences>       fix_requests;
+    Critical<Sentences>      fix_requests;
 
     auto load_configuration() -> bool;
     auto add_history(const History& word) -> bool;

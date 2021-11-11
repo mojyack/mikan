@@ -15,7 +15,7 @@ class Share {
   public:
     int                      candidate_page_size;
     size_t                   auto_commit_threshold;
-    SafeVar<MeCabModel*>     primary_vocabulary = nullptr;
+    Critical<MeCabModel*>    primary_vocabulary = nullptr;
     std::vector<MeCabModel*> additional_vocabularies;
     KeyConfig                key_config;
     InsertSpaceOptions       insert_space = InsertSpaceOptions::Smart;

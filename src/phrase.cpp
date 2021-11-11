@@ -39,10 +39,10 @@ Phrase::Phrase(const std::string& raw) : candidates(MeCabWord(raw)) {}
 Phrase::Phrase(MeCabWord&& raw, MeCabWord&& translated) : candidates(MeCabWord(raw), MeCabWord(translated)) {}
 
 namespace {
-std::string get_node_surface(const MeCab::Node* node) {
+auto get_node_surface(const MeCab::Node* const node) -> std::string {
     return std::string(node->surface, node->length);
 }
-MeCabWord node_to_word(const MeCab::Node* node) {
+MeCabWord node_to_word(const MeCab::Node* const node) {
     if(node->stat == MECAB_UNK_NODE) {
         return MeCabWord(get_node_surface(node));
     } else {
@@ -50,5 +50,5 @@ MeCabWord node_to_word(const MeCab::Node* node) {
     }
 }
 } // namespace
-Phrase::Phrase(const MeCab::Node* node) : candidates(MeCabWord(get_node_surface(node)), node_to_word(node)) {}
+Phrase::Phrase(const MeCab::Node* const node) : candidates(MeCabWord(get_node_surface(node)), node_to_word(node)) {}
 } // namespace mikan

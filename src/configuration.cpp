@@ -11,7 +11,7 @@ auto KeyConfig::operator[](Actions action) -> std::vector<KeyConfigKey>& {
     return keys[static_cast<size_t>(action)];
 }
 auto KeyConfig::match(const std::vector<Actions>& actions, const fcitx::KeyEvent& event) const -> bool {
-    for(auto a : actions) {
+    for(const auto a : actions) {
         if(match(a, event)) {
             return true;
         }

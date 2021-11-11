@@ -11,9 +11,9 @@
 namespace mikan {
 namespace {
 auto parse_line_to_history(const std::string& line) -> std::optional<History> {
-    size_t comma_index = 0;
-    size_t commas[4];
-    auto   pos = line.find(',');
+    auto comma_index = size_t(0);
+    auto commas      = std::array<size_t, 4>();
+    auto pos         = line.find(',');
     while(pos != std::string::npos) {
         if(comma_index >= 4) {
             comma_index = 0;
@@ -31,8 +31,9 @@ auto parse_line_to_history(const std::string& line) -> std::optional<History> {
     if(comma_index == 1) {
         hist.translation = MeCabWord(std::string(line.begin() + commas[0] + 1, line.end()));
     } else {
-        unsigned short rattr, lattr;
-        short          cost;
+        using Attr = unsigned short;
+        auto rattr = Attr(), lattr = Attr();
+        auto cost = short();
         try {
             lattr = stoi(std::string(line.begin() + commas[0] + 1, line.begin() + commas[1]));
             rattr = stoi(std::string(line.begin() + commas[1] + 1, line.begin() + commas[2]));
@@ -56,7 +57,7 @@ struct FeatureConstriant {
 auto build_raw_and_constraints(const Phrases& source, const bool ignore_protection) -> std::pair<std::string, std::vector<FeatureConstriant>> {
     auto feature_constriants = std::vector<FeatureConstriant>();
     auto buffer              = std::string();
-    for(auto p = source.begin(); p != source.end(); ++p) {
+    for(auto p = source.begin(); p != source.end(); p += 1) {
         const auto& raw = p->get_raw().get_feature();
         if(!ignore_protection && p->get_protection_level() != ProtectionLevel::NONE) {
             size_t begin = buffer.size();
@@ -109,7 +110,7 @@ auto MikanEngine::load_configuration() -> bool {
                     continue;
                 }
                 entry_name = l.substr(0, space);
-                for(auto i = space; l[i] != '\0'; ++i) {
+                for(auto i = space; l[i] != '\0'; i += 1) {
                     if(space != ' ' && space != '\t') {
                         break;
                     }
@@ -149,9 +150,9 @@ auto MikanEngine::load_configuration() -> bool {
     return true;
 }
 auto MikanEngine::add_history(const History& word) -> bool {
-    auto   new_word         = true;
-    auto   word_not_changed = true;
-    size_t duplicates       = 0;
+    auto new_word         = true;
+    auto word_not_changed = true;
+    auto duplicates       = size_t(0);
     for(auto& l : histories) {
         if(l.raw != word.raw || !l.translation.has_same_attr(word.translation)) {
             continue;
@@ -202,17 +203,17 @@ bool MikanEngine::compile_user_dictionary() const {
             std::copy(hists.begin(), hists.end(), std::back_inserter(to_compile));
         }
         std::copy(histories.begin(), histories.end(), std::back_inserter(to_compile));
-        std::ofstream file(csv);
+        auto file = std::ofstream(csv);
         for(const auto& l : to_compile) {
-            auto& t     = l.translation;
-            short lattr = t.has_valid_word_info() ? t.get_cattr_left() : 0;
-            short rattr = t.has_valid_word_info() ? t.get_cattr_right() : 0;
-            short cost  = t.has_valid_word_info() ? t.get_word_cost() : 0;
+            const auto& t     = l.translation;
+            const auto  lattr = t.has_valid_word_info() ? t.get_cattr_left() : 0;
+            const auto  rattr = t.has_valid_word_info() ? t.get_cattr_right() : 0;
+            const auto  cost  = t.has_valid_word_info() ? t.get_word_cost() : 0;
             file << l.raw << "," << std::to_string(lattr) << "," << std::to_string(rattr) << "," << std::to_string(cost) << "," << t.get_feature() << std::endl;
         }
     }
 
-    std::string command;
+    auto command = std::string();
     command += dictionary_compiler_path;
     command += " -d ";
     command += system_dictionary_path;
@@ -221,7 +222,7 @@ bool MikanEngine::compile_user_dictionary() const {
     command += " -f utf-8 -t utf-8 ";
     command += csv;
     command += " >& /dev/null";
-    auto result_code = WEXITSTATUS(system(command.data()));
+    const auto result_code = WEXITSTATUS(system(command.data()));
     std::filesystem::remove(csv);
     return result_code == 0;
 }
@@ -265,10 +266,9 @@ auto MikanEngine::recalc_cost(const Phrases& source) const -> long {
     const auto buffer      = std::move(source_data.first);
     const auto constraints = std::move(source_data.second);
 
-    std::lock_guard<std::mutex> lock(share.primary_vocabulary.mutex);
-
-    auto& dic     = share.primary_vocabulary.data;
-    auto& lattice = *dic->lattice;
+    const auto lock    = share.primary_vocabulary.get_lock();
+    auto&      dic     = share.primary_vocabulary.data;
+    auto&      lattice = *dic->lattice;
     lattice.set_request_type(MECAB_ONE_BEST);
     lattice.set_sentence(buffer.data());
     set_constraints(lattice, constraints);
@@ -278,7 +278,7 @@ auto MikanEngine::recalc_cost(const Phrases& source) const -> long {
 auto MikanEngine::compare_and_fix_dictionary(const Phrases& wants) -> void {
     {
         // before comparing, add words which is unknown and not from system dictionary.
-        bool added = false;
+        auto added = false;
         for(const auto& p : wants) {
             auto& word = p.get_translated();
             if(word.has_valid_word_info()) {
@@ -302,15 +302,15 @@ auto MikanEngine::compare_and_fix_dictionary(const Phrases& wants) -> void {
             p.set_protection_level(ProtectionLevel::NONE);
         }
         const auto total_diff = source_cost - recalc_cost(best);
-        for(size_t i = 0; i < wants.size(); ++i) {
-            Phrase&       pb = best[i];
+        for(auto i = size_t(0); i < wants.size(); i += 1) {
+            auto&         pb = best[i];
             const Phrase& pw = wants[i];
             if(pb.get_raw().get_feature() == pw.get_raw().get_feature() && pb.get_translated().get_feature() == pw.get_translated().get_feature()) {
                 continue;
             }
             all_phrases_passed = false;
             auto left          = std::string();
-            for(size_t p = i; p < best.size(); ++p) {
+            for(auto p = size_t(i); p < best.size(); p += 1) {
                 left += best[p].get_raw().get_feature();
             }
             auto& sw = pw.get_raw().get_feature();
@@ -330,13 +330,13 @@ auto MikanEngine::compare_and_fix_dictionary(const Phrases& wants) -> void {
         if(all_phrases_passed) {
             return;
         }
-        const long cost_decrement = total_diff / to_decrements.size() + 1;
+        const auto cost_decrement = total_diff / to_decrements.size() + 1;
         for(auto& d : to_decrements) {
-            auto& word         = d.translation;
-            auto  found        = std::find_if(histories.begin(), histories.end(), [&d](const History& o) {
+            auto&      word         = d.translation;
+            const auto found        = std::find_if(histories.begin(), histories.end(), [&d](const History& o) {
                 return d.raw == o.raw && d.translation.get_feature() == o.translation.get_feature() && d.translation.has_same_attr(o.translation);
-            });
-            long  current_cost = (found != histories.end() ? found->translation : word).get_word_cost();
+                   });
+            const auto current_cost = (found != histories.end() ? found->translation : word).get_word_cost();
             word.override_word_cost(current_cost - cost_decrement);
             add_history(d);
         }
@@ -345,14 +345,14 @@ auto MikanEngine::compare_and_fix_dictionary(const Phrases& wants) -> void {
     }
 }
 Sentences MikanEngine::translate_phrases(const Phrases& source, const bool best_only, const bool ignore_protection) const {
-    constexpr size_t N_BEST_LIMIT = 30;
+    constexpr auto N_BEST_LIMIT = size_t(30);
 
     auto       result      = Sentences();
     auto       source_data = build_raw_and_constraints(source, ignore_protection);
     const auto buffer      = std::move(source_data.first);
     const auto constraints = std::move(source_data.second);
     {
-        const auto lock = std::lock_guard<std::mutex>(share.primary_vocabulary.mutex);
+        const auto lock = share.primary_vocabulary.get_lock();
 
         const auto& dic     = share.primary_vocabulary.data;
         auto&       lattice = *dic->lattice;
@@ -360,7 +360,7 @@ Sentences MikanEngine::translate_phrases(const Phrases& source, const bool best_
         lattice.set_sentence(buffer.data());
         set_constraints(lattice, constraints);
         dic->tagger->parse(&lattice);
-        std::vector<std::string> result_features;
+        auto result_features = std::vector<std::string>();
         while(1) {
             const auto parsed_nodes   = parse_nodes(lattice, true);
             const auto parsed_feature = std::string(std::move(parsed_nodes.first));
@@ -388,8 +388,8 @@ Sentences MikanEngine::translate_phrases(const Phrases& source, const bool best_
 
     // retrive protected phrases.
     for(auto& r : result) {
-        size_t total_bytes          = 0;
-        auto   protected_phrase_pos = constraints.cbegin();
+        auto total_bytes          = size_t(0);
+        auto protected_phrase_pos = constraints.cbegin();
         for(auto& p : r) {
             if(protected_phrase_pos == constraints.cend()) {
                 break;
@@ -411,7 +411,7 @@ Sentences MikanEngine::translate_phrases(const Phrases& source, const bool best_
     return result;
 }
 auto MikanEngine::request_fix_dictionary(Phrases wants) -> void {
-    auto lock = std::lock_guard<std::mutex>(fix_requests.mutex);
+    const auto lock = fix_requests.get_lock();
     fix_requests.data.emplace_back(wants);
     dictionary_update_event.wakeup();
 }
@@ -448,7 +448,7 @@ MikanEngine::MikanEngine(fcitx::Instance* instance) : instance(instance),
         if(entry.path().filename() == "system") {
             system_dictionary_path = entry.path().string();
         } else {
-            MeCabModel* new_dic;
+            auto new_dic = (MeCabModel*)(nullptr);
             try {
                 new_dic = new MeCabModel(entry.path().string().data());
             } catch(const std::runtime_error&) {
@@ -479,10 +479,10 @@ MikanEngine::MikanEngine(fcitx::Instance* instance) : instance(instance),
     finish_dictionary_updater = false;
     dictionary_updater        = std::thread([this]() {
         while(!finish_dictionary_updater) {
-            Phrases request;
+            auto request = Phrases();
             do {
                 {
-                    std::lock_guard<std::mutex> lock(fix_requests.mutex);
+                    const auto lock = fix_requests.get_lock();
                     if(fix_requests.data.empty()) {
                         break;
                     }
@@ -492,14 +492,14 @@ MikanEngine::MikanEngine(fcitx::Instance* instance) : instance(instance),
                 compare_and_fix_dictionary(request);
             } while(0);
             {
-                std::lock_guard<std::mutex> lock(fix_requests.mutex);
+                const auto lock = fix_requests.get_lock();
                 if(!fix_requests.data.empty()) {
                     continue;
                 }
             }
             dictionary_update_event.wait();
         }
-    });
+           });
 
     share.key_config.keys.resize(static_cast<size_t>(Actions::ACTIONS_LIMIT));
     share.key_config[Actions::BACKSPACE]            = {{FcitxKey_BackSpace}};
