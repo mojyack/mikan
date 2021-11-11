@@ -1,10 +1,6 @@
 #pragma once
-//#include "fcitx-utils/keysym.h"
-//#include <cstddef>
-//#include <optional>
-
 #include <fcitx-utils/key.h>
-#include "fcitx/event.h"
+#include <fcitx/event.h>
 
 namespace mikan {
 enum class Actions : size_t {

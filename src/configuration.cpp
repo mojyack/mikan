@@ -1,5 +1,6 @@
+#include <fcitx-utils/keysym.h>
+
 #include "configuration.hpp"
-#include "fcitx-utils/keysym.h"
 
 namespace mikan {
 KeyConfigKey::KeyConfigKey(fcitx::KeySym sym, fcitx::KeyStates state) {
