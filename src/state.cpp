@@ -162,14 +162,17 @@ auto MikanState::build_preedit_text() const -> fcitx::Text {
             text   = phrase.get_translated().get_feature();
             preedit_cursor += text.size();
         }
+        const bool has_branches    = sentences.get_data_size() >= 2;
+        const bool is_current_last = current == &phrases->back();
+        const auto insert_space    = share.insert_space == InsertSpaceOptions::On || (share.insert_space == InsertSpaceOptions::Smart && (!is_current_last || has_branches));
+        if(&phrase == current && insert_space) {
+            text = "[" + text + "]";
+        }
         preedit.append(text, format);
         // add space between phrases.
-        const bool is_current_last = current == &phrases->back();
-        const bool has_branches    = sentences.get_data_size() >= 2;
-        if(share.insert_space == InsertSpaceOptions::On || (share.insert_space == InsertSpaceOptions::Smart && (!is_current_last || has_branches))) {
-            const static auto space      = std::string(" ");
-            auto              space_copy = space;
-            preedit.append(space_copy);
+        if(insert_space) {
+            auto space = std::string("|");
+            preedit.append(space);
             preedit_cursor += space.size();
         }
     }
