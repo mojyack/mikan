@@ -42,7 +42,7 @@ class PhraseCandidates : public Candidates {
     PhraseCandidates() = default;
     PhraseCandidates(MeCabWord raw);
     PhraseCandidates(MeCabWord raw, MeCabWord translated);
-    PhraseCandidates(const std::vector<MeCabModel*>& dictionaries, const std::string& raw, bool best_only);
+    PhraseCandidates(const std::vector<MeCabModel*>& dictionaries, const PhraseCandidates& source);
 };
 
 class CandidateWord : public fcitx::CandidateWord {

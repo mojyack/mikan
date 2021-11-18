@@ -56,14 +56,15 @@ PhraseCandidates::PhraseCandidates(MeCabWord raw, MeCabWord translated) {
     data  = MeCabWords{std::move(translated), std::move(raw)};
     index = 0;
 }
-PhraseCandidates::PhraseCandidates(const std::vector<MeCabModel*>& dictionaries, const std::string& raw, bool best_only) {
+PhraseCandidates::PhraseCandidates(const std::vector<MeCabModel*>& dictionaries, const PhraseCandidates& source) {
     const auto predicate_same_feature = [](const MeCabWord& elm, const MeCabWord& o) -> bool {
         return elm.get_feature() == o.get_feature();
     };
 
+    const auto& raw = source.get_raw().get_feature();
     for(auto d : dictionaries) {
         auto& lattice = *d->lattice;
-        lattice.set_request_type(best_only ? MECAB_ONE_BEST : MECAB_NBEST);
+        lattice.set_request_type(MECAB_NBEST);
         lattice.set_sentence(raw.data());
         lattice.set_feature_constraint(0, raw.size(), "*");
         d->tagger->parse(&lattice);
@@ -81,20 +82,29 @@ PhraseCandidates::PhraseCandidates(const std::vector<MeCabModel*>& dictionaries,
         lattice.clear();
     }
 
-    // second candidate is hiragana.
-    auto hiragana = MeCabWord();
-    if(auto p = std::find_if(data.begin(), data.end(), [&raw](const MeCabWord& o) {
-           return o.get_feature() == raw;
+    // first candidate is current feature
+    auto& current = source.get_current().get_feature();
+    if(auto p = std::find_if(data.begin(), data.end(), [&current](const MeCabWord& o) {
+           return o.get_feature() == current;
        });
-       p != data.end()) {
-        hiragana = std::move(*p);
-        data.erase(p);
-    } else {
-        hiragana = MeCabWord(raw);
+       p == data.end()) {
+        data.insert(data.begin(), MeCabWord(current));
+    } else if(p != data.begin()) {
+        std::swap(*p, data[0]);
     }
-    data.insert(data.begin() + (data.empty() ? 0 : 1), std::move(hiragana));
+
+    // second candidate is hiragana
+    if(current != raw) {
+        if(auto p = std::find_if(data.begin(), data.end(), [&raw](const MeCabWord& o) {
+               return o.get_feature() == raw;
+           });
+           p == data.end()) {
+            data.insert(data.begin() + 1, MeCabWord(raw));
+        } else if(p != data.begin() + 1) {
+            std::swap(*p, data[1]);
+        }
+    }
     index                            = 0;
     is_initialized_with_dictionaries = true;
 }
-
 } // namespace mikan

@@ -152,13 +152,14 @@ auto MikanState::handle_candidates(const fcitx::KeyEvent& event) -> bool {
     if(!share.key_config.match(actions, event)) {
         return false;
     }
-    auto current_phrase = (Phrase*)(nullptr);
-    calc_phrase_in_cursor(&current_phrase, nullptr);
-    if(current_phrase == nullptr) {
+
+    if(!context.inputPanel().candidateList() && !share.key_config.match(Actions::CANDIDATE_NEXT, event)) {
         return false;
     }
 
-    if(!context.inputPanel().candidateList() && !share.key_config.match(Actions::CANDIDATE_NEXT, event)) {
+    auto current_phrase = (Phrase*)(nullptr);
+    calc_phrase_in_cursor(&current_phrase, nullptr);
+    if(current_phrase == nullptr) {
         return false;
     }
 
@@ -170,7 +171,7 @@ auto MikanState::handle_candidates(const fcitx::KeyEvent& event) -> bool {
         const auto lock = share.primary_vocabulary.get_lock();
         auto       dic  = std::vector<MeCabModel*>{share.primary_vocabulary.data};
         std::copy(share.additional_vocabularies.begin(), share.additional_vocabularies.end(), std::back_inserter(dic));
-        current_phrase->reset_candidates(PhraseCandidates(dic, current_phrase->get_raw().get_feature(), false));
+        current_phrase->reset_candidates(PhraseCandidates(dic, current_phrase->get_candidates()));
         current_phrase->set_protection_level(ProtectionLevel::PRESERVE_TRANSLATION);
     }
     if(!current_phrase->has_candidates()) {
