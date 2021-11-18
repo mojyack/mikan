@@ -60,8 +60,8 @@ auto build_raw_and_constraints(const Phrases& source, const bool ignore_protecti
     for(auto p = source.begin(); p != source.end(); p += 1) {
         const auto& raw = p->get_raw().get_feature();
         if(!ignore_protection && p->get_protection_level() != ProtectionLevel::NONE) {
-            size_t begin = buffer.size();
-            size_t end   = begin + raw.size();
+            auto begin = buffer.size();
+            auto end   = begin + raw.size();
             feature_constriants.emplace_back(FeatureConstriant{begin, end, &*p});
         };
         buffer += raw;
@@ -86,14 +86,14 @@ auto load_histories(const char* path) -> std::vector<History> {
 }
 } // namespace
 auto MikanEngine::load_configuration() -> bool {
-    constexpr const char* CONFIG_FILE_NAME              = "mikan.conf";
-    constexpr const char* CANDIDATE_PAGE_SIZE           = "candidate_page_size";
-    constexpr const char* AUTO_COMMIT_THRESHOLD         = "auto_commit_threshold";
-    constexpr const char* DICTIONARY                    = "dictionary";
-    constexpr const char* INSERT_SPACE                  = "insert_space";
-    constexpr size_t      DEFAULT_CANDIDATE_PAGE_SIZE   = 10;
-    constexpr size_t      DEFAULT_AUTO_COMMIT_THRESHOLD = 8;
-    auto                  user_config_dir               = get_user_config_dir();
+    constexpr auto CONFIG_FILE_NAME              = "mikan.conf";
+    constexpr auto CANDIDATE_PAGE_SIZE           = "candidate_page_size";
+    constexpr auto AUTO_COMMIT_THRESHOLD         = "auto_commit_threshold";
+    constexpr auto DICTIONARY                    = "dictionary";
+    constexpr auto INSERT_SPACE                  = "insert_space";
+    constexpr auto DEFAULT_CANDIDATE_PAGE_SIZE   = 10;
+    constexpr auto DEFAULT_AUTO_COMMIT_THRESHOLD = 8;
+    const auto     user_config_dir               = get_user_config_dir();
     if(!std::filesystem::is_directory(user_config_dir) && !std::filesystem::create_directories(user_config_dir)) {
         return false;
     }
@@ -103,7 +103,7 @@ auto MikanEngine::load_configuration() -> bool {
         auto config = std::fstream(user_config_dir + CONFIG_FILE_NAME);
         auto l      = std::string();
         while(std::getline(config, l)) {
-            std::string entry_name, value;
+            auto entry_name = std::string(), value = std::string();
             {
                 const auto space = l.find(' ');
                 if(space == std::string::npos) {
@@ -181,7 +181,7 @@ auto MikanEngine::add_history(const History& word) -> bool {
 void MikanEngine::save_hisotry() const {
     auto file = std::ofstream(history_file_path);
     for(const auto& l : histories) {
-        std::string line;
+        auto line = std::string();
         line += l.raw + ",";
         line += std::to_string(l.translation.get_cattr_left()) + ",";
         line += std::to_string(l.translation.get_cattr_right()) + ",";
@@ -222,9 +222,9 @@ bool MikanEngine::compile_user_dictionary() const {
     command += " -f utf-8 -t utf-8 ";
     command += csv;
     command += " >& /dev/null";
-    const auto result_code = WEXITSTATUS(system(command.data()));
+    const auto exit_code = WEXITSTATUS(system(command.data()));
     std::filesystem::remove(csv);
-    return result_code == 0;
+    return exit_code == 0;
 }
 auto set_constraints(MeCab::Lattice& lattice, const std::vector<FeatureConstriant>& constraints) -> void {
     for(const auto& f : constraints) {
@@ -461,13 +461,14 @@ MikanEngine::MikanEngine(fcitx::Instance* instance) : instance(instance),
     if(system_dictionary_path.empty()) {
         throw std::runtime_error("failed to find system dictionary.");
     }
-    auto cache_dir = get_user_cache_dir();
+    const auto cache_dir = get_user_cache_dir();
     if(!std::filesystem::is_directory(cache_dir)) {
         std::filesystem::create_directories(cache_dir);
     }
     history_file_path       = cache_dir + "history.csv";
     history_dictionary_path = cache_dir + "history.dic";
-    auto compiler_path      = get_dictionary_compiler_path();
+
+    const auto compiler_path = get_dictionary_compiler_path();
     if(compiler_path.has_value()) {
         dictionary_compiler_path = compiler_path.value() + "/mecab-dict-index";
     }

@@ -27,8 +27,8 @@ auto get_user_cache_dir() -> std::string {
     return get_xdg_path("XDG_CACHE_HOME", ".cache");
 }
 auto get_dictionary_compiler_path() -> std::optional<std::string> {
-    constexpr const auto COMMAND    = "mecab-config --libexecdir";
-    constexpr auto       BUFFER_LEN = 128;
+    constexpr auto COMMAND    = "mecab-config --libexecdir";
+    constexpr auto BUFFER_LEN = 128;
 
     auto buffer = std::array<char, BUFFER_LEN>();
     auto result = std::string();
@@ -66,7 +66,7 @@ auto u8tou32(const std::string& u8) -> std::u32string {
 }
 auto u32tou8(const std::u32string& u32) -> std::string {
     auto u8 = std::string();
-    for(auto c : u32) {
+    for(const auto c : u32) {
         auto buffer = std::array<char, FCITX_UTF8_MAX_LENGTH>();
         fcitx_ucs4_to_utf8(c, buffer.data());
         u8 += buffer.data();

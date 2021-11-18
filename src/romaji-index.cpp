@@ -7,7 +7,7 @@ namespace mikan {
 auto RomajiIndex::search_by_nth_chara(const char chara, const size_t n, const RomajiKana** const exact) const -> std::vector<size_t> {
     auto r = std::vector<size_t>();
     if(n == 0) {
-        for(size_t i = 0; i < romaji_table_limit; i += 1) {
+        for(auto i = size_t(0); i < romaji_table_limit; i += 1) {
             const auto& romaji = romaji_table[i].romaji;
             if(romaji[0] == chara) {
                 if(romaji.size() == n + 1) {
@@ -18,7 +18,7 @@ auto RomajiIndex::search_by_nth_chara(const char chara, const size_t n, const Ro
             }
         }
     } else {
-        for(auto i : cache) {
+        for(const auto i : cache) {
             const auto& romaji = romaji_table[i].romaji;
             if(romaji.size() <= n) {
                 continue;
@@ -39,9 +39,9 @@ auto RomajiIndex::filter(const std::string& to_kana) -> const RomajiKana* {
         return nullptr;
     }
 
-    bool use_cache = true;
+    auto use_cache = true;
     if(!cache_source.empty() && to_kana.size() == cache_source.size() + 1) {
-        for(size_t i = 0; i < cache_source.size(); ++i) {
+        for(auto i = size_t(0); i < cache_source.size(); i += 1) {
             if(cache_source[i] != to_kana[i]) {
                 use_cache = false;
                 break;
@@ -54,7 +54,7 @@ auto RomajiIndex::filter(const std::string& to_kana) -> const RomajiKana* {
     auto exact = (const RomajiKana*)nullptr;
     if(!use_cache) {
         cache.clear();
-        for(size_t i = 0; i < to_kana.size(); i += 1) {
+        for(auto i = size_t(0); i < to_kana.size(); i += 1) {
             cache = search_by_nth_chara(to_kana[i], i, &exact);
             if(exact != nullptr) {
                 goto end;

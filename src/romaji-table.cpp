@@ -62,7 +62,7 @@ const RomajiKana romaji_table[] = {
     {";", ";"}, {":", ":"}, {"'", "'"}, {"\"", "\""}, {")", ")"}, {"_", "_"}, {"+", "+"},
     {",", "、"}, {"<", "<"}, {".", "。"}, {">", ">"}, {"/", "/"}, {"?", "?"},
 };
-const uint64_t romaji_table_limit = sizeof(romaji_table) / sizeof(romaji_table[0]);
+const auto romaji_table_limit = sizeof(romaji_table) / sizeof(romaji_table[0]);
 
 const HiraKata hiragana_katakana_table[] = {
     {U"あ", "ア"}, {U"い", "イ"}, {U"う", "ウ"}, {U"え", "エ"}, {U"お", "オ"},
@@ -86,5 +86,5 @@ const HiraKata hiragana_katakana_table[] = {
     {U"ゃ", "ャ"}, {U"ぃ", "ィ"}, {U"ゅ", "ュ"}, {U"ぇ", "ェ"}, {U"ょ", "ョ"},
     {U"う゛", "ヴ"},
 };
-const uint64_t hiragana_katakana_table_limit = sizeof(hiragana_katakana_table) / sizeof(hiragana_katakana_table[0]);
+const auto hiragana_katakana_table_limit = sizeof(hiragana_katakana_table) / sizeof(hiragana_katakana_table[0]);
 }
