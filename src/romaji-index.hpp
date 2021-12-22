@@ -3,7 +3,7 @@
 #include <string>
 
 namespace mikan {
-class RomajiKana;
+struct RomajiKana;
 
 enum class RomajiFilterStatus {
     EXACT_ONE,

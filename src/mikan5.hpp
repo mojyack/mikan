@@ -1,4 +1,6 @@
 #pragma once
+#include <thread>
+
 #include <fcitx/inputmethodengine.h>
 #include <fcitx/instance.h>
 

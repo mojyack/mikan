@@ -1,3 +1,4 @@
+#include <array>
 #include <optional>
 
 #include <fcitx-utils/utf8.h>
