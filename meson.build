@@ -1,4 +1,4 @@
-project('fcitx5-mikan', 'cpp', version : '1.5.1', license : 'MIT', default_options : ['c_std=c20', 'cpp_std=c++20'])
+project('fcitx5-mikan', 'cpp', version : '1.5.2', license : 'MIT', default_options : ['c_std=c20', 'cpp_std=c++20'])
         
 subdir('src')
 
