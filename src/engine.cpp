@@ -433,8 +433,7 @@ auto MikanEngine::deactivate(const fcitx::InputMethodEntry& entry, fcitx::InputC
     event.accept();
     reset(entry, event);
 }
-MikanEngine::MikanEngine(fcitx::Instance* instance) : instance(instance),
-                                                      factory([this](fcitx::InputContext& context) {
+MikanEngine::MikanEngine(fcitx::Instance* instance) : factory([this](fcitx::InputContext& context) {
                                                           auto new_state = new MikanState(context, *this, share);
                                                           return new_state;
                                                       }) {

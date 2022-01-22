@@ -18,7 +18,6 @@ using Histories = std::vector<History>;
 
 class MikanEngine final : public fcitx::InputMethodEngine {
   private:
-    fcitx::Instance*              instance;
     fcitx::FactoryFor<MikanState> factory;
     Share                         share;
 
