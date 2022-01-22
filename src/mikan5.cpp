@@ -502,24 +502,24 @@ MikanEngine::MikanEngine(fcitx::Instance* instance) : instance(instance),
         }
            });
 
-    share.key_config.keys.resize(static_cast<size_t>(Actions::Actions_limit));
-    share.key_config[Actions::Backspace]            = {{FcitxKey_BackSpace}};
-    share.key_config[Actions::Reinterpret_next]     = {{FcitxKey_space}};
-    share.key_config[Actions::Reinterpret_prev]     = {{FcitxKey_space, fcitx::KeyState::Shift}};
-    share.key_config[Actions::Candidate_next]       = {{FcitxKey_Down}, {FcitxKey_J, fcitx::KeyState::Ctrl}};
-    share.key_config[Actions::Candidate_prev]       = {{FcitxKey_Up}, {FcitxKey_K, fcitx::KeyState::Ctrl}};
-    share.key_config[Actions::Candidate_page_next]  = {{FcitxKey_Left}};
-    share.key_config[Actions::Candidate_page_prev]  = {{FcitxKey_Right}};
-    share.key_config[Actions::Commit]               = {{FcitxKey_Return}};
-    share.key_config[Actions::Phrase_next]          = {{FcitxKey_Left}, {FcitxKey_H, fcitx::KeyState::Ctrl}};
-    share.key_config[Actions::Phrase_prev]          = {{FcitxKey_Right}, {FcitxKey_L, fcitx::KeyState::Ctrl}};
-    share.key_config[Actions::Split_phrase_left]    = {{FcitxKey_Left, fcitx::KeyState::Ctrl}, {FcitxKey_H, fcitx::KeyState::Alt}};
-    share.key_config[Actions::Split_phrase_right]   = {{FcitxKey_Right, fcitx::KeyState::Ctrl}, {FcitxKey_L, fcitx::KeyState::Alt}};
-    share.key_config[Actions::Merge_phrase_left]    = {{FcitxKey_Left, fcitx::KeyState::Ctrl_Alt}, {FcitxKey_J, fcitx::KeyState::Alt}};
-    share.key_config[Actions::Merge_phrase_right]   = {{FcitxKey_Right, fcitx::KeyState::Ctrl_Alt}, {FcitxKey_K, fcitx::KeyState::Alt}};
-    share.key_config[Actions::Move_separator_left]  = {{FcitxKey_Left, fcitx::KeyState::Alt}, {FcitxKey_H, fcitx::KeyState::Ctrl_Alt}};
-    share.key_config[Actions::Move_separator_right] = {{FcitxKey_Right, fcitx::KeyState::Alt}, {FcitxKey_L, fcitx::KeyState::Ctrl_Alt}};
-    share.key_config[Actions::Convert_katakana]     = {{FcitxKey_q}};
+    share.key_config.keys.resize(static_cast<size_t>(Actions::ActionsLimit));
+    share.key_config[Actions::Backspace]          = {{FcitxKey_BackSpace}};
+    share.key_config[Actions::ReinterpretNext]    = {{FcitxKey_space}};
+    share.key_config[Actions::ReinterpretPrev]    = {{FcitxKey_space, fcitx::KeyState::Shift}};
+    share.key_config[Actions::CandidateNext]      = {{FcitxKey_Down}, {FcitxKey_J, fcitx::KeyState::Ctrl}};
+    share.key_config[Actions::CandidatePrev]      = {{FcitxKey_Up}, {FcitxKey_K, fcitx::KeyState::Ctrl}};
+    share.key_config[Actions::CandidatePageNext]  = {{FcitxKey_Left}};
+    share.key_config[Actions::CandidatePagePrev]  = {{FcitxKey_Right}};
+    share.key_config[Actions::Commit]             = {{FcitxKey_Return}};
+    share.key_config[Actions::PhraseNext]         = {{FcitxKey_Left}, {FcitxKey_H, fcitx::KeyState::Ctrl}};
+    share.key_config[Actions::PhrasePrev]         = {{FcitxKey_Right}, {FcitxKey_L, fcitx::KeyState::Ctrl}};
+    share.key_config[Actions::SplitPhraseLeft]    = {{FcitxKey_Left, fcitx::KeyState::Ctrl}, {FcitxKey_H, fcitx::KeyState::Alt}};
+    share.key_config[Actions::SplitPhraseRight]   = {{FcitxKey_Right, fcitx::KeyState::Ctrl}, {FcitxKey_L, fcitx::KeyState::Alt}};
+    share.key_config[Actions::MergePhraseLeft]    = {{FcitxKey_Left, fcitx::KeyState::Ctrl_Alt}, {FcitxKey_J, fcitx::KeyState::Alt}};
+    share.key_config[Actions::MergePhraseRight]   = {{FcitxKey_Right, fcitx::KeyState::Ctrl_Alt}, {FcitxKey_K, fcitx::KeyState::Alt}};
+    share.key_config[Actions::MoveSeparatorLeft]  = {{FcitxKey_Left, fcitx::KeyState::Alt}, {FcitxKey_H, fcitx::KeyState::Ctrl_Alt}};
+    share.key_config[Actions::MoveSeparatorRight] = {{FcitxKey_Right, fcitx::KeyState::Alt}, {FcitxKey_L, fcitx::KeyState::Ctrl_Alt}};
+    share.key_config[Actions::ConvertKatakana]    = {{FcitxKey_q}};
 }
 MikanEngine::~MikanEngine() {
     finish_dictionary_updater = true;
