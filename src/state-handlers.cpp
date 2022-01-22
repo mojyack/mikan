@@ -62,7 +62,7 @@ auto MikanState::handle_romaji(const fcitx::KeyEvent& event) -> bool {
     return true;
 }
 auto MikanState::handle_delete(const fcitx::KeyEvent& event) -> bool {
-    if(!share.key_config.match(Actions::BACKSPACE, event)) {
+    if(!share.key_config.match(Actions::Backspace, event)) {
         return false;
     }
     if(!to_kana.empty()) {
@@ -121,7 +121,7 @@ auto MikanState::handle_delete(const fcitx::KeyEvent& event) -> bool {
     return false;
 }
 auto MikanState::handle_reinterpret_phrases(const fcitx::KeyEvent& event) -> bool {
-    const static auto actions = std::vector{Actions::REINTERPRET_NEXT, Actions::REINTERPRET_PREV};
+    const static auto actions = std::vector{Actions::Reinterpret_next, Actions::Reinterpret_prev};
     if(phrases == nullptr || !share.key_config.match(actions, event)) {
         return false;
     }
@@ -136,7 +136,7 @@ auto MikanState::handle_reinterpret_phrases(const fcitx::KeyEvent& event) -> boo
         context.inputPanel().setCandidateList(std::make_unique<CandidateList>(&sentences, share.candidate_page_size));
     }
     auto candidate_list = context.inputPanel().candidateList().get();
-    if(share.key_config.match(Actions::REINTERPRET_NEXT, event)) {
+    if(share.key_config.match(Actions::Reinterpret_next, event)) {
         candidate_list->toCursorMovable()->nextCandidate();
     } else {
         candidate_list->toCursorMovable()->prevCandidate();
@@ -148,12 +148,12 @@ auto MikanState::handle_reinterpret_phrases(const fcitx::KeyEvent& event) -> boo
     return true;
 }
 auto MikanState::handle_candidates(const fcitx::KeyEvent& event) -> bool {
-    const static auto actions = std::vector{Actions::CANDIDATE_NEXT, Actions::CANDIDATE_PREV, Actions::CANDIDATE_PAGE_NEXT, Actions::CANDIDATE_PAGE_PREV};
+    const static auto actions = std::vector{Actions::Candidate_next, Actions::Candidate_prev, Actions::Candidate_page_next, Actions::Candidate_page_prev};
     if(!share.key_config.match(actions, event)) {
         return false;
     }
 
-    if(!context.inputPanel().candidateList() && !share.key_config.match(Actions::CANDIDATE_NEXT, event)) {
+    if(!context.inputPanel().candidateList() && !share.key_config.match(Actions::Candidate_next, event)) {
         return false;
     }
 
@@ -184,20 +184,20 @@ auto MikanState::handle_candidates(const fcitx::KeyEvent& event) -> bool {
     auto candidate_list = context.inputPanel().candidateList().get();
 
     // move candidate list index.
-    if(share.key_config.match(Actions::CANDIDATE_NEXT, event)) {
+    if(share.key_config.match(Actions::Candidate_next, event)) {
         candidate_list->toCursorMovable()->nextCandidate();
-    } else if(share.key_config.match(Actions::CANDIDATE_PREV, event)) {
+    } else if(share.key_config.match(Actions::Candidate_prev, event)) {
         candidate_list->toCursorMovable()->prevCandidate();
-    } else if(share.key_config.match(Actions::CANDIDATE_PAGE_NEXT, event)) {
+    } else if(share.key_config.match(Actions::Candidate_page_next, event)) {
         candidate_list->toPageable()->prev();
-    } else if(share.key_config.match(Actions::CANDIDATE_PAGE_PREV, event)) {
+    } else if(share.key_config.match(Actions::Candidate_page_prev, event)) {
         candidate_list->toPageable()->next();
     }
 
     return true;
 }
 auto MikanState::handle_commit_phrases(const fcitx::KeyEvent& event) -> bool {
-    if(!share.key_config.match(Actions::COMMIT, event)) {
+    if(!share.key_config.match(Actions::Commit, event)) {
         return false;
     }
     if(phrases == nullptr) {
@@ -214,11 +214,11 @@ auto MikanState::handle_commit_phrases(const fcitx::KeyEvent& event) -> bool {
     return true;
 }
 auto MikanState::handle_move_cursor_phrase(const fcitx::KeyEvent& event) -> bool {
-    const static auto actions = std::vector{Actions::PHRASE_NEXT, Actions::PHRASE_PREV};
+    const static auto actions = std::vector{Actions::Phrase_next, Actions::Phrase_prev};
     if(!share.key_config.match(actions, event)) {
         return false;
     }
-    const auto forward          = share.key_config.match(Actions::PHRASE_NEXT, event);
+    const auto forward          = share.key_config.match(Actions::Phrase_next, event);
     auto       current_phrase   = (Phrase*)(nullptr);
     auto       new_phrase       = (Phrase*)(nullptr);
     auto       cursor_in_phrase = size_t();
@@ -241,7 +241,7 @@ auto MikanState::handle_move_cursor_phrase(const fcitx::KeyEvent& event) -> bool
     return true;
 }
 auto MikanState::handle_split_phrase(const fcitx::KeyEvent& event) -> bool {
-    const static auto actions = std::vector{Actions::SPLIT_PHRASE_LEFT, Actions::SPLIT_PHRASE_RIGHT};
+    const static auto actions = std::vector{Actions::Split_phrase_left, Actions::Split_phrase_right};
     if(!share.key_config.match(actions, event)) {
         return false;
     }
@@ -263,7 +263,7 @@ auto MikanState::handle_split_phrase(const fcitx::KeyEvent& event) -> bool {
 
     // split 'a' into two.
     const auto raw_32        = u8tou32(a->get_raw().get_feature());
-    const auto split_pos     = share.key_config.match(Actions::SPLIT_PHRASE_LEFT, event) ? 1 : raw_32.size() - 1;
+    const auto split_pos     = share.key_config.match(Actions::Split_phrase_left, event) ? 1 : raw_32.size() - 1;
     b->get_mutable_feature() = u32tou8(raw_32.substr(split_pos));
     a->get_mutable_feature() = u32tou8(raw_32.substr(0, split_pos));
 
@@ -277,7 +277,7 @@ auto MikanState::handle_split_phrase(const fcitx::KeyEvent& event) -> bool {
     return true;
 }
 auto MikanState::handle_merge_phrase(const fcitx::KeyEvent& event) -> bool {
-    const static auto actions = std::vector{Actions::MERGE_PHRASE_LEFT, Actions::MERGE_PHRASE_RIGHT};
+    const static auto actions = std::vector{Actions::Merge_phrase_left, Actions::Merge_phrase_right};
     if(!share.key_config.match(actions, event)) {
         return false;
     }
@@ -290,7 +290,7 @@ auto MikanState::handle_merge_phrase(const fcitx::KeyEvent& event) -> bool {
     if(current_phrase == nullptr) {
         return true;
     }
-    const auto left         = share.key_config.match(Actions::MERGE_PHRASE_LEFT, event);
+    const auto left         = share.key_config.match(Actions::Merge_phrase_left, event);
     const auto merge_phrase = current_phrase + (left ? -1 : 1);
     if(merge_phrase < &(*phrases)[0] || merge_phrase > &phrases->back()) {
         return true;
@@ -310,7 +310,7 @@ auto MikanState::handle_merge_phrase(const fcitx::KeyEvent& event) -> bool {
     return true;
 }
 auto MikanState::handle_move_separator(const fcitx::KeyEvent& event) -> bool {
-    const static auto actions = std::vector{Actions::MOVE_SEPARATOR_LEFT, Actions::MOVE_SEPARATOR_RIGHT};
+    const static auto actions = std::vector{Actions::Move_separator_left, Actions::Move_separator_right};
     if(!share.key_config.match(actions, event)) {
         return false;
     }
@@ -333,7 +333,7 @@ auto MikanState::handle_move_separator(const fcitx::KeyEvent& event) -> bool {
 
     // move cursor and separator.
     auto       moved_chara_size = size_t();
-    const auto left             = share.key_config.match(Actions::MOVE_SEPARATOR_LEFT, event);
+    const auto left             = share.key_config.match(Actions::Move_separator_left, event);
     if(left) {
         auto current_u32 = u8tou32(current_phrase->get_raw().get_feature());
         moved_chara_size = fcitx_ucs4_char_len(current_u32.back());
@@ -361,7 +361,7 @@ auto MikanState::handle_move_separator(const fcitx::KeyEvent& event) -> bool {
     return true;
 }
 auto MikanState::handle_convert_katakana(const fcitx::KeyEvent& event) -> bool {
-    if(!share.key_config.match(Actions::CONVERT_KATAKANA, event)) {
+    if(!share.key_config.match(Actions::Convert_katakana, event)) {
         return false;
     }
 
