@@ -1,7 +1,7 @@
 #include <fcitx/inputcontext.h>
 #include <fcitx/inputpanel.h>
 
-#include "mikan5.hpp"
+#include "engine.hpp"
 #include "state.hpp"
 
 namespace mikan {
