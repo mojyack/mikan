@@ -1,4 +1,5 @@
 project('fcitx5-mikan', 'cpp', version : '1.5.2', license : 'MIT', default_options : ['c_std=c20', 'cpp_std=c++20'])
+add_global_arguments('-Wno-non-virtual-dtor', language : 'cpp')
         
 subdir('src')
 
