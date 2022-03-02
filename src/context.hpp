@@ -309,6 +309,67 @@ class Context final : public fcitx::InputContextProperty {
             goto end;
         } while(0);
 
+        // handle delete
+        do {
+            if(!share.key_config.match(Actions::Backspace, event)) {
+                break;
+            }
+            if(!to_kana.empty()) {
+                pop_back_u8(to_kana);
+                goto end;
+            }
+            auto current_phrase   = (Phrase*)(nullptr);
+            auto cursor_in_phrase = size_t();
+            calc_phrase_in_cursor(&current_phrase, &cursor_in_phrase);
+            if(current_phrase == nullptr) {
+                break;
+            }
+            auto raw   = u8tou32(current_phrase->get_raw().get_feature());
+            auto bytes = size_t(0);
+            auto kana  = raw.begin();
+            for(; kana != raw.end(); kana += 1) {
+                bytes += fcitx_ucs4_char_len(*kana);
+                if(bytes == cursor_in_phrase) {
+                    break;
+                }
+            }
+            if(kana == raw.end()) {
+                break;
+            }
+
+            // disassembly the kana to romaji and pop back.
+            auto kana8 = std::array<char, FCITX_UTF8_MAX_LENGTH>();
+            fcitx_ucs4_to_utf8(*kana, kana8.data());
+            auto success = true;
+            try {
+                to_kana = kana_to_romaji(kana8.data());
+            } catch(const std::runtime_error&) {
+                success = false;
+            }
+            if(success) {
+                pop_back_u8(to_kana);
+            }
+
+            // move cursor.
+            cursor -= fcitx_ucs4_char_len(*kana);
+
+            // delete character from the phrase.
+            raw.erase(kana);
+            current_phrase->get_mutable_feature() = u32tou8(raw);
+
+            // translate.
+            current_phrase->set_protection_level(ProtectionLevel::None);
+            *phrases = translate_phrases(*phrases, true)[0];
+
+            // phrases may be empty.
+            if(phrases->empty()) {
+                reset();
+            }
+
+            apply_candidates();
+            goto end;
+        } while(0);
+
         // handle reinterpret phrases
         do {
             constexpr auto actions = std::array{Actions::ReinterpretNext, Actions::ReinterpretPrev};
