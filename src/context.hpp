@@ -317,6 +317,7 @@ class Context final : public fcitx::InputContextProperty {
                 pop_back_u8(to_kana);
                 goto end;
             }
+            move_cursor_back();
             auto current_phrase   = (Phrase*)(nullptr);
             auto cursor_in_phrase = size_t();
             calc_phrase_in_cursor(&current_phrase, &cursor_in_phrase);
@@ -668,9 +669,8 @@ class Context final : public fcitx::InputContextProperty {
             if(fcitx_utf8_strlen(romaji_8.data()) != 1) {
                 break;
             }
-            if(merge_branch_sentences()) {
-                move_cursor_back();
-            }
+            merge_branch_sentences();
+            move_cursor_back();
 
             to_kana += romaji_8;
             auto filter_result = romaji_index.filter(to_kana);
@@ -730,5 +730,4 @@ class Context final : public fcitx::InputContextProperty {
 
     Context(fcitx::InputContext& context, Engine& engine, Share& share) : context(context), engine(engine), share(share) {}
 };
-
 } // namespace mikan
