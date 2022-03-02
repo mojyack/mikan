@@ -156,7 +156,6 @@ class Context final : public fcitx::InputContextProperty {
     auto build_preedit_text() const -> fcitx::Text {
         auto preedit = fcitx::Text();
         if(phrases == nullptr) {
-            std::string text = to_kana;
             preedit.append(to_kana, fcitx::TextFormatFlag::Underline);
             preedit.setCursor(to_kana.size());
             return preedit;
