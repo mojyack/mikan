@@ -4,6 +4,8 @@
 
 #include <mecab.h>
 
+#include "util.hpp"
+
 namespace mikan {
 struct MeCabModel {
     const bool      is_valid             = false;
@@ -20,9 +22,8 @@ struct MeCabModel {
             dict_path += user_dictionary;
         }
         model = MeCab::createModel(dict_path.data());
-        if(model == nullptr) {
-            throw std::runtime_error("failed to load system dictionary.");
-        }
+        dynamic_assert(model != nullptr, "failed to load system dictionary");
+
         tagger  = model->createTagger();
         lattice = model->createLattice();
     }

@@ -112,7 +112,7 @@ class Context final : public fcitx::InputContextProperty {
             }
             total_bytes = phrase_end;
         }
-        throw std::runtime_error("cursor is not in any phrase.");
+        panic("cursor is not in any phrase.");
     }
     auto move_cursor_back() -> void {
         if(phrases == nullptr) {

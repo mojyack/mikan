@@ -369,7 +369,7 @@ class Engine {
     }
 
   public:
-    auto translate_phrases(const Phrases& source, bool best_only, bool ignore_protection = false) const -> Sentences {
+    auto translate_phrases(const Phrases& source, const bool best_only, const bool ignore_protection = false) const -> Sentences {
         constexpr auto N_BEST_LIMIT = size_t(30);
 
         auto       result      = Sentences();
@@ -427,7 +427,7 @@ class Engine {
                     }
                     protected_phrase_pos += 1;
                 } else if(total_bytes > protected_phrase_pos->begin) {
-                    throw std::runtime_error("protected phrase lost.");
+                    panic("protected phrase lost");
                 }
                 total_bytes += p.get_raw().get_feature().size();
             }
@@ -444,7 +444,7 @@ class Engine {
     Engine(Share& share) : share(share) {
         // load configuration
         if(!load_configuration()) {
-            throw std::runtime_error("failed to load configuration.");
+            panic("failed to load configuration.");
         }
         for(const auto& entry : std::filesystem::directory_iterator(DICTIONARY_PATH)) {
             if(entry.path().filename() == "system") {

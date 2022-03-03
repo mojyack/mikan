@@ -75,8 +75,7 @@ inline auto kana_to_romaji(const std::string& kana) -> std::string {
             return romaji_table[i].romaji;
         }
     }
-    // printf("unknown %s\n", kana.data());
-    throw std::runtime_error("unknown kana passed.");
+    panic("unknown kana passed");
 }
 inline auto pop_back_u8(std::string& u8) -> void {
     auto u32 = u8tou32(u8);
