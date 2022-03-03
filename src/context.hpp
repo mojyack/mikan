@@ -56,7 +56,7 @@ class Context final : public fcitx::InputContextProperty {
         if(phrases == nullptr) {
             return false;
         }
-        if(sentences.get_index() != 0) {
+        if(share.enable_history && sentences.get_index() != 0) {
             // if sentences.index != 0, it means user fixed translation manually.
             // so we have to check the differences between sentences[0] and *phrases.
             engine.request_fix_dictionary(*phrases);
@@ -147,7 +147,7 @@ class Context final : public fcitx::InputContextProperty {
         *phrases = translate_phrases(*phrases, true)[0];
         auto_commit();
     }
-    auto translate_phrases(const Phrases& source, bool best_only) -> Sentences {
+    auto translate_phrases(const Phrases& source, const bool best_only) -> Sentences {
         if(phrases == nullptr) {
             return Sentences();
         }
@@ -206,7 +206,7 @@ class Context final : public fcitx::InputContextProperty {
         if(!context.inputPanel().candidateList()) {
             return;
         }
-        // hide candidate list window.
+        // hide candidate list window
         context.inputPanel().setCandidateList(nullptr);
     }
     auto auto_commit() -> void {
@@ -217,19 +217,18 @@ class Context final : public fcitx::InputContextProperty {
         auto       on_holds   = size_t(0);
         auto       commited   = false;
         for(auto i = size_t(0); i <= commit_num; i += 1) {
-            // we have to ensure that the following phrases' translations will be the same without this phrase.
+            // we have to ensure that the following phrase's translations will remain the same without this phrase
             if((*phrases)[on_holds].get_protection_level() != ProtectionLevel::PreserveTranslation) {
-                std::vector<Phrase> copy(phrases->begin() + on_holds + 1, phrases->end());
-                copy = translate_phrases(copy, true)[0];
+                auto copy = translate_phrases(std::vector<Phrase>(phrases->begin() + on_holds + 1, phrases->end()), true)[0];
                 if(copy[0].get_translated().get_feature() != (*phrases)[on_holds + 1].get_translated().get_feature()) {
-                    // translation result will be changed.
-                    // but maybe we can commit this phrase with next one.
+                    // translation result will be changed
+                    // but maybe we can commit this phrase with next one
                     on_holds += 1;
                     continue;
                 }
             }
 
-            // commit phrases.
+            // commit phrases
             for(auto i = size_t(0); i <= on_holds; i += 1) {
                 commit_phrase(&(*phrases)[0]);
                 const auto commited_bytes = (*phrases)[0].get_raw().get_feature().size();
@@ -277,7 +276,7 @@ class Context final : public fcitx::InputContextProperty {
 
             make_branch_sentence();
 
-            // get candidate list.
+            // get candidate list
             if(!current_phrase->is_candidates_initialized()) {
                 calc_phrase_in_cursor(&current_phrase, nullptr);
                 const auto lock = share.primary_vocabulary.get_lock();

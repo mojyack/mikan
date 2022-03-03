@@ -18,6 +18,7 @@ class Share {
     Critical<MeCabModel*>    primary_vocabulary = nullptr;
     std::vector<MeCabModel*> additional_vocabularies;
     KeyConfig                key_config;
-    InsertSpaceOptions       insert_space = InsertSpaceOptions::Smart;
+    InsertSpaceOptions       insert_space   = InsertSpaceOptions::Smart;
+    bool                     enable_history = true;
 };
 } // namespace mikan

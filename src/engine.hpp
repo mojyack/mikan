@@ -131,6 +131,7 @@ class Engine {
         constexpr auto AUTO_COMMIT_THRESHOLD         = "auto_commit_threshold";
         constexpr auto DICTIONARY                    = "dictionary";
         constexpr auto INSERT_SPACE                  = "insert_space";
+        constexpr auto HISTORY                       = "history";
         constexpr auto DEFAULT_CANDIDATE_PAGE_SIZE   = 10;
         constexpr auto DEFAULT_AUTO_COMMIT_THRESHOLD = 8;
         const auto     user_config_dir               = get_user_config_dir();
@@ -181,6 +182,8 @@ class Engine {
                     } else {
                         error = true;
                     }
+                } else if(entry_name == HISTORY) {
+                    share.enable_history = value == "on";
                 }
                 if(error) {
                     FCITX_WARN() << "error while parsing configuration: " << entry_name;
@@ -439,7 +442,6 @@ class Engine {
     }
 
     Engine(Share& share) : share(share) {
-
         // load configuration
         if(!load_configuration()) {
             throw std::runtime_error("failed to load configuration.");
