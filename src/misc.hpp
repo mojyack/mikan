@@ -28,7 +28,7 @@ inline auto get_user_cache_dir() -> std::string {
     return get_xdg_path("XDG_CACHE_HOME", ".cache");
 }
 inline auto get_dictionary_compiler_path() -> std::optional<std::string> {
-    const auto result = Process({"mecab-config", "--libexecdir", nullptr}).join();
+    const auto result = Process({"/usr/bin/mecab-config", "--libexecdir", nullptr}).join();
     if(result.status.code != 0) {
         return std::nullopt;
     }
