@@ -2,17 +2,13 @@
 #include <string>
 #include <vector>
 #include <array>
+#include <unordered_map>
 
 namespace mikan {
 struct RomajiKana {
     const std::string romaji;
     const char*       kana;
     const char*       refill = nullptr;
-};
-
-struct HiraKata {
-    const std::u32string hiragana;
-    const char*          katakana;
 };
 
 inline const auto romaji_table = std::array {
@@ -59,7 +55,7 @@ inline const auto romaji_table = std::array {
     RomajiKana{"ssya", "っしゃ"}, RomajiKana{"ssyi", "っしぃ"}, RomajiKana{"ssyu", "っしゅ"}, RomajiKana{"ssye", "っしぇ"}, RomajiKana{"ssyo", "っしょ"},
     RomajiKana{"hhya", "っひゃ"}, RomajiKana{"hhyi", "っひ"}, RomajiKana{"hhyu", "っひゅ"}, RomajiKana{"hhye", "っひぇ"}, RomajiKana{"hhyo", "っひょ"},
     RomajiKana{"ppya", "っぴゃ"}, RomajiKana{"ppyi", "っぴぃ"}, RomajiKana{"ppyu", "っぴゅ"}, RomajiKana{"ppye", "っぴぇ"}, RomajiKana{"ppyo", "っぴょ"},
-    RomajiKana{"va", "う゛ぁ"}, RomajiKana{"vi","う゛ぃ"}, RomajiKana{"vu","う゛"}, RomajiKana{"ve","う゛ぇ"}, RomajiKana{"vo","う゛ぉ"},
+    RomajiKana{"va", "ゔぁ"}, RomajiKana{"vi","ゔぃ"}, RomajiKana{"vu","ゔ"}, RomajiKana{"ve","ゔぇ"}, RomajiKana{"vo","ゔぉ"},
     RomajiKana{"la", "ぁ"}, RomajiKana{"li","ぃ"}, RomajiKana{"lu","ぅ"}, RomajiKana{"le","ぇ"}, RomajiKana{"lo","ぉ"},
     RomajiKana{"lya", "ゃ"}, RomajiKana{"lyi","ぃ"}, RomajiKana{"lyu","ゅ"}, RomajiKana{"lye", "ぇ"}, RomajiKana{"lyo","ょ"},
     RomajiKana{"ltu", "っ"},
@@ -77,26 +73,26 @@ inline const auto romaji_table = std::array {
     RomajiKana{",", "、"}, RomajiKana{"<", "<"}, RomajiKana{".", "。"}, RomajiKana{">", ">"}, RomajiKana{"/", "/"}, RomajiKana{"?", "?"},
 };
 
-inline const auto hiragana_katakana_table = std::array{
-    HiraKata{U"あ", "ア"}, HiraKata{U"い", "イ"}, HiraKata{U"う", "ウ"}, HiraKata{U"え", "エ"}, HiraKata{U"お", "オ"},
-    HiraKata{U"か", "カ"}, HiraKata{U"き", "キ"}, HiraKata{U"く", "ク"}, HiraKata{U"け", "ケ"}, HiraKata{U"こ", "コ"},
-    HiraKata{U"さ", "サ"}, HiraKata{U"し", "シ"}, HiraKata{U"す", "ス"}, HiraKata{U"せ", "セ"}, HiraKata{U"そ", "ソ"},
-    HiraKata{U"た", "タ"}, HiraKata{U"ち", "チ"}, HiraKata{U"つ", "ツ"}, HiraKata{U"て", "テ"}, HiraKata{U"と", "ト"},
-    HiraKata{U"な", "ナ"}, HiraKata{U"に", "ニ"}, HiraKata{U"ぬ", "ヌ"}, HiraKata{U"ね", "ネ"}, HiraKata{U"の", "ノ"},
-    HiraKata{U"は", "ハ"}, HiraKata{U"ひ", "ヒ"}, HiraKata{U"ふ", "フ"}, HiraKata{U"へ", "ヘ"}, HiraKata{U"ほ", "ホ"},
-    HiraKata{U"ま", "マ"}, HiraKata{U"み", "ミ"}, HiraKata{U"む", "ム"}, HiraKata{U"め", "メ"}, HiraKata{U"も", "モ"},
-    HiraKata{U"や", "ヤ"}, HiraKata{U"い", "イ"}, HiraKata{U"ゆ", "ユ"}, HiraKata{U"え", "エ"}, HiraKata{U"よ", "ヨ"},
-    HiraKata{U"ら", "ラ"}, HiraKata{U"り", "リ"}, HiraKata{U"る", "ル"}, HiraKata{U"れ", "レ"}, HiraKata{U"ろ", "ロ"},
-    HiraKata{U"わ", "ワ"}, HiraKata{U"い", "イ"}, HiraKata{U"う", "ウ"}, HiraKata{U"え", "エ"}, HiraKata{U"を", "ヲ"}, HiraKata{U"ん", "ン"},
-    HiraKata{U"が", "ガ"}, HiraKata{U"ぎ", "ギ"}, HiraKata{U"ぐ", "グ"}, HiraKata{U"げ", "ゲ"}, HiraKata{U"ご", "ゴ"},
-    HiraKata{U"ざ", "ザ"}, HiraKata{U"じ", "ジ"}, HiraKata{U"ず", "ズ"}, HiraKata{U"ぜ", "ゼ"}, HiraKata{U"ぞ", "ゾ"},
-    HiraKata{U"だ", "ダ"}, HiraKata{U"ぢ", "ヂ"}, HiraKata{U"づ", "ヅ"}, HiraKata{U"で", "デ"}, HiraKata{U"ど", "ド"},
-    HiraKata{U"ば", "バ"}, HiraKata{U"び", "ビ"}, HiraKata{U"ぶ", "ブ"}, HiraKata{U"べ", "ベ"}, HiraKata{U"ぼ", "ボ"},
-    HiraKata{U"ぱ", "バ"}, HiraKata{U"ぴ", "ピ"}, HiraKata{U"ぷ", "プ"}, HiraKata{U"ぺ", "ペ"}, HiraKata{U"ぽ", "ボ"},
-    HiraKata{U"ぁ", "ァ"}, HiraKata{U"ぃ", "ィ"}, HiraKata{U"ぅ", "ゥ"}, HiraKata{U"ぇ", "ェ"}, HiraKata{U"ぉ", "ォ"},
-    HiraKata{U"っ", "ッ"},
-    HiraKata{U"ゃ", "ャ"}, HiraKata{U"ぃ", "ィ"}, HiraKata{U"ゅ", "ュ"}, HiraKata{U"ぇ", "ェ"}, HiraKata{U"ょ", "ョ"},
-    HiraKata{U"ゃ", "ャ"}, HiraKata{U"ぃ", "ィ"}, HiraKata{U"ゅ", "ュ"}, HiraKata{U"ぇ", "ェ"}, HiraKata{U"ょ", "ョ"},
-    HiraKata{U"う゛", "ヴ"},
+inline const auto hiragana_katakana_table = std::unordered_map<char32_t, char32_t> {
+    {U'あ', U'ア'}, {U'い', U'イ'}, {U'う', U'ウ'}, {U'え', U'エ'}, {U'お', U'オ'},
+    {U'か', U'カ'}, {U'き', U'キ'}, {U'く', U'ク'}, {U'け', U'ケ'}, {U'こ', U'コ'},
+    {U'さ', U'サ'}, {U'し', U'シ'}, {U'す', U'ス'}, {U'せ', U'セ'}, {U'そ', U'ソ'},
+    {U'た', U'タ'}, {U'ち', U'チ'}, {U'つ', U'ツ'}, {U'て', U'テ'}, {U'と', U'ト'},
+    {U'な', U'ナ'}, {U'に', U'ニ'}, {U'ぬ', U'ヌ'}, {U'ね', U'ネ'}, {U'の', U'ノ'},
+    {U'は', U'ハ'}, {U'ひ', U'ヒ'}, {U'ふ', U'フ'}, {U'へ', U'ヘ'}, {U'ほ', U'ホ'},
+    {U'ま', U'マ'}, {U'み', U'ミ'}, {U'む', U'ム'}, {U'め', U'メ'}, {U'も', U'モ'},
+    {U'や', U'ヤ'}, {U'い', U'イ'}, {U'ゆ', U'ユ'}, {U'え', U'エ'}, {U'よ', U'ヨ'},
+    {U'ら', U'ラ'}, {U'り', U'リ'}, {U'る', U'ル'}, {U'れ', U'レ'}, {U'ろ', U'ロ'},
+    {U'わ', U'ワ'}, {U'い', U'イ'}, {U'う', U'ウ'}, {U'え', U'エ'}, {U'を', U'ヲ'}, {U'ん', U'ン'},
+    {U'が', U'ガ'}, {U'ぎ', U'ギ'}, {U'ぐ', U'グ'}, {U'げ', U'ゲ'}, {U'ご', U'ゴ'},
+    {U'ざ', U'ザ'}, {U'じ', U'ジ'}, {U'ず', U'ズ'}, {U'ぜ', U'ゼ'}, {U'ぞ', U'ゾ'},
+    {U'だ', U'ダ'}, {U'ぢ', U'ヂ'}, {U'づ', U'ヅ'}, {U'で', U'デ'}, {U'ど', U'ド'},
+    {U'ば', U'バ'}, {U'び', U'ビ'}, {U'ぶ', U'ブ'}, {U'べ', U'ベ'}, {U'ぼ', U'ボ'},
+    {U'ぱ', U'バ'}, {U'ぴ', U'ピ'}, {U'ぷ', U'プ'}, {U'ぺ', U'ペ'}, {U'ぽ', U'ボ'},
+    {U'ぁ', U'ァ'}, {U'ぃ', U'ィ'}, {U'ぅ', U'ゥ'}, {U'ぇ', U'ェ'}, {U'ぉ', U'ォ'},
+    {U'っ', U'ッ'},
+    {U'ゃ', U'ャ'}, {U'ぃ', U'ィ'}, {U'ゅ', U'ュ'}, {U'ぇ', U'ェ'}, {U'ょ', U'ョ'},
+    {U'ゃ', U'ャ'}, {U'ぃ', U'ィ'}, {U'ゅ', U'ュ'}, {U'ぇ', U'ェ'}, {U'ょ', U'ョ'},
+    {U'ゔ', U'ヴ'},
 };
 } // namespace mikan

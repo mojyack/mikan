@@ -586,48 +586,15 @@ class Context final : public fcitx::InputContextProperty {
                 break;
             }
 
-            auto        katakana = std::string();
-            const auto& raw      = current_phrase->get_raw().get_feature();
-            auto        u32      = u8tou32(raw);
-            auto        options  = std::vector<const HiraKata*>();
-            auto        char_num = size_t(0);
-            for(auto c = u32.begin(); c != u32.end(); c += 1) {
-                auto term     = std::u32string(c - char_num, c + 1);
-                auto filtered = std::vector<const HiraKata*>();
-                for(auto i = size_t(0); i < hiragana_katakana_table.size(); i += 1) {
-                    const auto& hirakata = hiragana_katakana_table[i];
-                    if(hirakata.hiragana.starts_with(term)) {
-                        emplace_unique(filtered, &hirakata, [](const HiraKata* h, const HiraKata* o) {
-                            return h->hiragana == o->hiragana;
-                        });
-                    }
-                }
-                if(filtered.size() == 1) {
-                    katakana += filtered[0]->katakana;
-                    char_num = 0;
-                    options.clear();
-                } else if(filtered.empty() || c + 1 == u32.end()) {
-                    if(!filtered.empty()) {
-                        options = std::move(filtered);
-                    }
-                    if(options.empty()) {
-                        katakana += u32tou8(*c);
-                    } else {
-                        if(char_num != 0) {
-                            const auto& u8str  = options[0]->katakana;
-                            const auto  u32str = u8tou32(u8str);
-                            katakana += u32tou8(u32str.substr(0, char_num));
-                        } else {
-                            katakana += options[0]->katakana;
-                        }
-                        options.clear();
-                        char_num = 0;
-                    }
-                } else {
-                    options = std::move(filtered);
-                    char_num += 1;
+            auto        katakana32 = std::u32string();
+            const auto& raw        = current_phrase->get_raw().get_feature();
+            auto        u32        = u8tou32(raw);
+            for(const auto c : u8tou32(raw)) {
+                if(const auto p = hiragana_katakana_table.find(c); p != hiragana_katakana_table.end()) {
+                    katakana32 += p->second;
                 }
             }
+            const auto katakana = u32tou8(katakana32);
             {
                 // try to get word information(if exists in dictionary)
                 const auto lock    = share.primary_vocabulary.get_lock();
