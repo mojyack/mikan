@@ -592,6 +592,8 @@ class Context final : public fcitx::InputContextProperty {
             for(const auto c : u8tou32(raw)) {
                 if(const auto p = hiragana_katakana_table.find(c); p != hiragana_katakana_table.end()) {
                     katakana32 += p->second;
+                } else {
+                    katakana32 += c;
                 }
             }
             const auto katakana = u32tou8(katakana32);
