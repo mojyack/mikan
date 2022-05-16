@@ -11,7 +11,7 @@ struct RomajiKana {
     const char*       refill = nullptr;
 };
 
-inline const auto romaji_table = std::array<RomajiKana,312> {{
+inline const auto romaji_table = std::array<RomajiKana,317> {{
     {"a", "あ"}, {"i", "い"}, {"u", "う"}, {"e", "え"}, {"o", "お"},
     {"ka", "か"}, {"ki", "き"}, {"ku", "く"}, {"ke", "け"}, {"ko", "こ"},
     {"sa", "さ"}, {"si", "し"}, {"su", "す"}, {"se", "せ"}, {"so", "そ"},
