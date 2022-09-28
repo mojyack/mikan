@@ -270,10 +270,8 @@ class Engine {
         return exit_code == 0;
     }
     auto reload_dictionary() -> void {
-        auto new_dic = new MeCabModel(system_dictionary_path.data(), history_dictionary_path.data(), true);
-        auto old_dic = share.primary_vocabulary.load();
-        share.primary_vocabulary.store(new_dic);
-        if(old_dic != nullptr) {
+        const auto new_dic = new MeCabModel(system_dictionary_path.data(), history_dictionary_path.data(), true);
+        if(const auto old_dic = share.primary_vocabulary.swap(new_dic); old_dic != nullptr) {
             delete old_dic;
         }
     }
@@ -289,9 +287,8 @@ class Engine {
         const auto buffer      = std::move(source_data.first);
         const auto constraints = std::move(source_data.second);
 
-        const auto lock    = share.primary_vocabulary.get_lock();
-        auto&      dic     = share.primary_vocabulary.data;
-        auto&      lattice = *dic->lattice;
+        auto [lock, dic] = share.primary_vocabulary.access();
+        auto& lattice    = *dic->lattice;
         lattice.set_request_type(MECAB_ONE_BEST);
         lattice.set_sentence(buffer.data());
         set_constraints(lattice, constraints);
@@ -358,7 +355,7 @@ class Engine {
                 auto&      word         = d.translation;
                 const auto found        = std::find_if(histories.begin(), histories.end(), [&d](const History& o) {
                     return d.raw == o.raw && d.translation.get_feature() == o.translation.get_feature() && d.translation.has_same_attr(o.translation);
-                       });
+                });
                 const auto current_cost = (found != histories.end() ? found->translation : word).get_word_cost();
                 word.override_word_cost(current_cost - cost_decrement);
                 add_history(d);
@@ -377,10 +374,8 @@ class Engine {
         const auto buffer      = std::move(source_data.first);
         const auto constraints = std::move(source_data.second);
         {
-            const auto lock = share.primary_vocabulary.get_lock();
-
-            const auto& dic     = share.primary_vocabulary.data;
-            auto&       lattice = *dic->lattice;
+            auto [lock, dic] = share.primary_vocabulary.access();
+            auto& lattice    = *dic->lattice;
             lattice.set_request_type(best_only ? MECAB_ONE_BEST : MECAB_NBEST);
             lattice.set_sentence(buffer.data());
             set_constraints(lattice, constraints);
@@ -436,8 +431,8 @@ class Engine {
         return result;
     }
     auto request_fix_dictionary(Phrases wants) -> void {
-        const auto lock = fix_requests.get_lock();
-        fix_requests.data.emplace_back(wants);
+        auto [lock, requests] = fix_requests.access();
+        requests.emplace_back(wants);
         dictionary_update_event.wakeup();
     }
 
@@ -483,24 +478,21 @@ class Engine {
                 auto request = Phrases();
                 do {
                     {
-                        const auto lock = fix_requests.get_lock();
-                        if(fix_requests.data.empty()) {
+                        auto [lock, requests] = fix_requests.access();
+                        if(requests.empty()) {
                             break;
                         }
-                        request = std::move(fix_requests.data[0]);
-                        fix_requests.data.erase(fix_requests.data.begin());
+                        request = std::move(requests[0]);
+                        requests.erase(requests.begin());
                     }
                     compare_and_fix_dictionary(request);
                 } while(0);
-                {
-                    const auto lock = fix_requests.get_lock();
-                    if(!fix_requests.data.empty()) {
-                        continue;
-                    }
+                if(!fix_requests.access().second.empty()) {
+                    continue;
                 }
                 dictionary_update_event.wait();
             }
-               });
+        });
 
         share.key_config.keys.resize(static_cast<size_t>(Actions::ActionsLimit));
         share.key_config[Actions::Backspace]          = {{FcitxKey_BackSpace}};
@@ -525,7 +517,7 @@ class Engine {
         finish_dictionary_updater = true;
         dictionary_update_event.wakeup();
         dictionary_updater.join();
-        delete share.primary_vocabulary.data;
+        delete share.primary_vocabulary.unsafe_access();
         for(auto d : share.additional_vocabularies) {
             delete d;
         }
