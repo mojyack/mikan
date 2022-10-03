@@ -14,12 +14,15 @@ class Candidates {
     auto move_index(const int val) -> void {
         index = (index + val) % get_data_size();
     }
+
     auto set_index(const uint64_t val) -> void {
         index = val % get_data_size();
     }
+
     auto get_index() const -> uint64_t {
         return index;
     }
+
     virtual auto get_data_size() const -> size_t                = 0;
     virtual auto get_labels() const -> std::vector<std::string> = 0;
 
@@ -40,33 +43,43 @@ class PhraseCandidates : public Candidates {
             return data[1];
         }
     }
+
     auto get_translated() const -> const MeCabWord& {
         return data[index];
     }
+
     auto get_mutable_feature() -> std::string& {
         return data[data.size() < 2 ? 0 : 1].get_mutable_feature();
     }
+
     auto override_translated(const MeCabWord& translated) -> void {
         data[0] = translated;
     }
+    
     auto override_translated(MeCabWord&& translated) -> void {
         data[0] = std::move(translated);
     }
+
     auto is_initialized() const -> bool {
         return is_initialized_with_dictionaries;
     }
+
     auto has_candidates() const -> bool {
         return data.size() > 1;
     }
+
     auto get_data_size() const -> size_t {
         return data.size();
     }
+
     auto get_data_ref() const -> const MeCabWords& {
         return data;
     }
+
     auto get_current() const -> const MeCabWord& {
         return data[index];
     }
+
     auto get_labels() const -> std::vector<std::string> {
         auto labels = std::vector<std::string>();
         for(auto& d : data) {
@@ -74,19 +87,23 @@ class PhraseCandidates : public Candidates {
         }
         return labels;
     }
+
     auto operator[](size_t index) const -> const MeCabWord& {
         return data[index];
     }
 
     PhraseCandidates() = default;
+
     PhraseCandidates(MeCabWord raw) {
         data  = MeCabWords{std::move(raw)};
         index = 0;
     }
+
     PhraseCandidates(MeCabWord raw, MeCabWord translated) {
         data  = MeCabWords{std::move(translated), std::move(raw)};
         index = 0;
     }
+
     PhraseCandidates(const std::vector<MeCabModel*>& dictionaries, const PhraseCandidates& source) {
         const auto predicate_same_feature = [](const MeCabWord& elm, const MeCabWord& o) -> bool {
             return elm.get_feature() == o.get_feature();
@@ -158,6 +175,7 @@ class CandidateList : public fcitx::CandidateList,
     auto index_to_local(const size_t idx) const -> size_t {
         return idx - currentPage() * page_size;
     }
+
     auto index_to_global(const size_t idx) const -> size_t {
         return idx + currentPage() * page_size;
     }
@@ -168,12 +186,15 @@ class CandidateList : public fcitx::CandidateList,
         const static auto label = fcitx::Text("");
         return label;
     }
+
     auto candidate(const int idx) const -> const CandidateWord& override {
         return *words[index_to_global(idx)];
     }
+
     auto cursorIndex() const -> int override {
         return index_to_local(data->get_index());
     }
+
     auto size() const -> int override {
         const auto size   = data->get_data_size();
         const auto remain = size - currentPage() * page_size;
@@ -184,9 +205,11 @@ class CandidateList : public fcitx::CandidateList,
     auto hasPrev() const -> bool override {
         return currentPage() >= 1;
     }
+
     auto hasNext() const -> bool override {
         return currentPage() + 1 < totalPages();
     }
+
     auto prev() -> void override {
         auto add = page_size;
         if(add > static_cast<size_t>(cursorIndex())) {
@@ -194,6 +217,7 @@ class CandidateList : public fcitx::CandidateList,
         }
         data->move_index(-add);
     }
+
     auto next() -> void override {
         auto       add  = page_size;
         const auto size = data->get_data_size();
@@ -202,19 +226,24 @@ class CandidateList : public fcitx::CandidateList,
         }
         data->move_index(page_size);
     }
+
     auto usedNextBefore() const -> bool override {
         return true;
     }
+
     auto totalPages() const -> int override {
         const auto size = data->get_data_size();
         return size / page_size + 1;
     }
+
     auto currentPage() const -> int override {
         return data->get_index() / page_size;
     }
+
     auto setPage(int page) -> void override {
         data->set_index(page * page_size);
     }
+
     auto layoutHint() const -> fcitx::CandidateLayoutHint override {
         return fcitx::CandidateLayoutHint::NotSet;
     }
@@ -223,6 +252,7 @@ class CandidateList : public fcitx::CandidateList,
     auto prevCandidate() -> void override {
         data->move_index(-1);
     }
+
     auto nextCandidate() -> void override {
         data->move_index(1);
     }

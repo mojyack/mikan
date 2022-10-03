@@ -20,12 +20,14 @@ class Factory final : public fcitx::InputMethodEngine {
         auto  state   = context.propertyFor(&factory);
         state->handle_key_event(event);
     }
+
     auto activate(const fcitx::InputMethodEntry& entry, fcitx::InputContextEvent& event) -> void override {
         auto& context = *event.inputContext();
         auto  state   = context.propertyFor(&factory);
         state->handle_activate();
         event.accept();
     }
+
     auto deactivate(const fcitx::InputMethodEntry& entry, fcitx::InputContextEvent& event) -> void override {
         auto& context = *event.inputContext();
         auto  state   = context.propertyFor(&factory);

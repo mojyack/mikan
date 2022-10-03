@@ -39,6 +39,7 @@ struct KeyConfig {
     auto operator[](Actions action) -> std::vector<KeyConfigKey>& {
         return keys[static_cast<size_t>(action)];
     }
+
     auto match(const auto& actions, const fcitx::KeyEvent& event) const -> bool {
         for(const auto a : actions) {
             if(match(a, event)) {
@@ -47,6 +48,7 @@ struct KeyConfig {
         }
         return false;
     }
+
     auto match(const Actions action, const fcitx::KeyEvent& event) const -> bool {
         const auto& key = event.key();
         for(const auto& k : keys[static_cast<size_t>(action)]) {

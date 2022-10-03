@@ -100,5 +100,4 @@ struct RomajiIndex {
         }
     }
 };
-
 } // namespace mikan

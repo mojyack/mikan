@@ -34,6 +34,7 @@ class Context final : public fcitx::InputContextProperty {
         const auto& translated = phrase->get_translated();
         context.commitString(translated.get_feature());
     }
+
     auto commit_all_phrases() -> void {
         merge_branch_sentences();
         auto current = (Phrase*)(nullptr);
@@ -46,12 +47,14 @@ class Context final : public fcitx::InputContextProperty {
             }
         }
     }
+
     auto make_branch_sentence() -> void {
         if(!translation_changed) {
             shrink_sentences(true);
             translation_changed = true;
         }
     }
+
     auto merge_branch_sentences() -> bool {
         if(phrases == nullptr) {
             return false;
@@ -69,6 +72,7 @@ class Context final : public fcitx::InputContextProperty {
             return false;
         }
     }
+
     auto shrink_sentences(const bool reserve_one = false) -> void {
         if(phrases == nullptr) {
             return;
@@ -81,6 +85,7 @@ class Context final : public fcitx::InputContextProperty {
         }
         phrases = sentences.get_current_ptr();
     }
+
     auto delete_surrounding_text() -> bool {
         if(phrases != nullptr || !to_kana.empty() || !context.capabilityFlags().test(fcitx::CapabilityFlag::SurroundingText)) {
             return false;
@@ -92,6 +97,7 @@ class Context final : public fcitx::InputContextProperty {
         context.deleteSurroundingText(0, text.anchor() - text.cursor());
         return true;
     }
+
     auto calc_phrase_in_cursor(Phrase** phrase, size_t* cursor_in_phrase = nullptr) const -> void {
         if(phrases == nullptr) {
             *phrase = nullptr;
@@ -114,6 +120,7 @@ class Context final : public fcitx::InputContextProperty {
         }
         panic("cursor is not in any phrase.");
     }
+
     auto move_cursor_back() -> void {
         if(phrases == nullptr) {
             return;
@@ -124,6 +131,7 @@ class Context final : public fcitx::InputContextProperty {
             cursor += p.get_raw().get_feature().size();
         }
     }
+
     auto append_kana(const std::string& kana) -> void {
         // append kana to selected phrase.
         if(phrases == nullptr) {
@@ -147,12 +155,14 @@ class Context final : public fcitx::InputContextProperty {
         *phrases = translate_phrases(*phrases, true)[0];
         auto_commit();
     }
+
     auto translate_phrases(const Phrases& source, const bool best_only) -> Sentences {
         if(phrases == nullptr) {
             return Sentences();
         }
         return engine.translate_phrases(source, best_only);
     }
+
     auto build_preedit_text() const -> fcitx::Text {
         auto preedit = fcitx::Text();
         if(phrases == nullptr) {
@@ -202,6 +212,7 @@ class Context final : public fcitx::InputContextProperty {
         }
         return preedit;
     }
+
     auto apply_candidates() -> void {
         if(!context.inputPanel().candidateList()) {
             return;
@@ -209,6 +220,7 @@ class Context final : public fcitx::InputContextProperty {
         // hide candidate list window
         context.inputPanel().setCandidateList(nullptr);
     }
+
     auto auto_commit() -> void {
         if(phrases == nullptr || phrases->size() < share.auto_commit_threshold || phrases->size() < 2) {
             return;
@@ -247,6 +259,7 @@ class Context final : public fcitx::InputContextProperty {
             sentence_changed = true;
         }
     }
+
     auto reset() -> void {
         sentences.clear();
         phrases          = nullptr;
@@ -678,9 +691,11 @@ class Context final : public fcitx::InputContextProperty {
         }
         return;
     }
+
     auto handle_activate() -> void {
         context.setCapabilityFlags(context.capabilityFlags() |= fcitx::CapabilityFlag::ClientUnfocusCommit);
     }
+
     auto handle_deactivate() -> void {
         apply_candidates();
         context.inputPanel().reset();

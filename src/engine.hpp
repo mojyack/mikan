@@ -74,6 +74,7 @@ class Engine {
         }
         return hist;
     }
+
     static auto build_raw_and_constraints(const Phrases& source, const bool ignore_protection) -> std::pair<std::string, std::vector<FeatureConstriant>> {
         auto feature_constriants = std::vector<FeatureConstriant>();
         auto buffer              = std::string();
@@ -88,6 +89,7 @@ class Engine {
         }
         return std::make_pair(buffer, feature_constriants);
     }
+
     static auto load_histories(const char* path) -> std::vector<History> {
         auto res = std::vector<History>();
         if(!std::filesystem::is_regular_file(path)) {
@@ -104,12 +106,14 @@ class Engine {
         }
         return res;
     }
+
     static auto set_constraints(MeCab::Lattice& lattice, const std::vector<FeatureConstriant>& constraints) -> void {
         for(const auto& f : constraints) {
             auto& phrase = *f.phrase;
             lattice.set_feature_constraint(f.begin, f.end, phrase.get_protection_level() == ProtectionLevel::PreserveTranslation ? phrase.get_translated().get_feature().data() : "*");
         }
     }
+
     static auto parse_nodes(MeCab::Lattice& lattice, const bool needs_parsed_feature) -> std::pair<std::string, Phrases> {
         auto parsed         = Phrases();
         auto parsed_feature = std::string();
@@ -192,6 +196,7 @@ class Engine {
         }
         return true;
     }
+
     auto add_history(const History& word) -> bool {
         auto new_word         = true;
         auto word_not_changed = true;
@@ -221,6 +226,7 @@ class Engine {
         }
         return new_word || !word_not_changed;
     }
+
     auto save_hisotry() const -> void {
         auto file = std::ofstream(history_file_path);
         for(const auto& l : histories) {
@@ -233,6 +239,7 @@ class Engine {
             file << line << std::endl;
         }
     }
+
     auto compile_user_dictionary() const -> bool {
         auto csv = std::string("/tmp/mikan-tmp");
         while(std::filesystem::exists(csv)) {
@@ -269,12 +276,14 @@ class Engine {
         std::filesystem::remove(csv);
         return exit_code == 0;
     }
+
     auto reload_dictionary() -> void {
         const auto new_dic = new MeCabModel(system_dictionary_path.data(), history_dictionary_path.data(), true);
         if(const auto old_dic = share.primary_vocabulary.swap(new_dic); old_dic != nullptr) {
             delete old_dic;
         }
     }
+
     auto recalc_cost(const Phrases& source) const -> long {
         // source.back().get_translated().get_total_cost() sould be total cost.
         // but it seems that mecab sets incorrect cost values when parsing delimiter positions and words at the same time.
@@ -295,6 +304,7 @@ class Engine {
         dic->tagger->parse(&lattice);
         return parse_nodes(lattice, true).second.back().get_translated().get_total_cost();
     }
+
     auto compare_and_fix_dictionary(const Phrases& wants) -> void {
         {
             // before comparing, add words which is unknown and not from system dictionary.
@@ -430,6 +440,7 @@ class Engine {
 
         return result;
     }
+
     auto request_fix_dictionary(Phrases wants) -> void {
         auto [lock, requests] = fix_requests.access();
         requests.emplace_back(wants);
@@ -513,6 +524,7 @@ class Engine {
         share.key_config[Actions::MoveSeparatorRight] = {{FcitxKey_Right, fcitx::KeyState::Alt}, {FcitxKey_L, fcitx::KeyState::Ctrl_Alt}};
         share.key_config[Actions::ConvertKatakana]    = {{FcitxKey_q}};
     }
+
     ~Engine() {
         finish_dictionary_updater = true;
         dictionary_update_event.wakeup();
