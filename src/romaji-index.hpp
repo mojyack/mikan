@@ -14,14 +14,14 @@ struct RomajiIndex {
     auto search_by_nth_chara(const char chara, const size_t n, const RomajiKana** const exact) const -> std::vector<size_t> {
         auto r = std::vector<size_t>();
         if(n == 0) {
-            for(auto i = size_t(0); i < romaji_table.size(); i += 1) {
-                const auto& romaji = romaji_table[i].romaji;
+            for(auto i = std::begin(romaji_table); i < std::end(romaji_table); i += 1) {
+                const auto& romaji = i->romaji;
                 if(romaji[0] == chara) {
                     if(romaji.size() == n + 1) {
-                        *exact = &romaji_table[i];
+                        *exact = i;
                         return r;
                     }
-                    r.emplace_back(i);
+                    r.emplace_back(std::end(romaji_table) - i);
                 }
             }
         } else {

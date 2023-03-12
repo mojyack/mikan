@@ -11,7 +11,7 @@ struct RomajiKana {
     const char*       refill = nullptr;
 };
 
-inline const auto romaji_table = std::array<RomajiKana,317> {{
+inline const RomajiKana romaji_table[] = {
     {"a", "あ"}, {"i", "い"}, {"u", "う"}, {"e", "え"}, {"o", "お"},
     {"ka", "か"}, {"ki", "き"}, {"ku", "く"}, {"ke", "け"}, {"ko", "こ"},
     {"sa", "さ"}, {"si", "し"}, {"su", "す"}, {"se", "せ"}, {"so", "そ"},
@@ -49,6 +49,7 @@ inline const auto romaji_table = std::array<RomajiKana,317> {{
     {"ppa", "っぱ"}, {"ppi", "っぴ"}, {"ppu", "っぷ"}, {"ppe", "っぺ"}, {"ppo", "っぽ"},
     {"ssa", "っさ"}, {"ssi", "っし"}, {"ssu", "っす"}, {"sse", "っせ"}, {"sso", "っそ"},
     {"hya", "ひゃ"}, {"hyi", "ひぃ"}, {"hyu", "ひゅ"}, {"hye", "ひぇ"}, {"hyo", "ひょ"},
+    {"fya", "ふゃ"}, {"fyi", "ふぃ"}, {"fyu", "ふゅ"}, {"fye", "ふぇ"}, {"fyo", "ふょ"},
     {"ffa", "っふぁ"}, {"ffi", "っふぃ"}, {"ffu", "っふ"}, {"ffe", "っふぇ"}, {"ffo", "っふぉ"},
     {"ttya", "っちゃ"}, {"ttyi", "っちぃ"}, {"ttyu", "っちゅ"}, {"ttye", "っちぇ"}, {"ttyo", "っちょ"},
     {"kkya", "っきゃ"}, {"kkyi", "っきぃ"}, {"kkyu", "っきゅ"}, {"kkye", "っきぇ"}, {"kkyo", "っきょ"},
@@ -72,7 +73,7 @@ inline const auto romaji_table = std::array<RomajiKana,317> {{
     {"[", "「"}, {"]", "」"}, {"\\", "\\"}, {"{", "{"}, {"}", "}"}, {"|", "|"},
     {";", ";"}, {":", ":"}, {"'", "'"}, {"\"", "\""}, {")", ")"}, {"_", "_"}, {"+", "+"},
     {",", "、"}, {"<", "<"}, {".", "。"}, {">", ">"}, {"/", "/"}, {"?", "?"},
-}};
+};
 
 inline const auto hiragana_katakana_table = std::unordered_map<char32_t, char32_t> {
     {U'あ', U'ア'}, {U'い', U'イ'}, {U'う', U'ウ'}, {U'え', U'エ'}, {U'お', U'オ'},
