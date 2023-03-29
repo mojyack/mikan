@@ -327,10 +327,11 @@ class Context final : public fcitx::InputContextProperty {
             // get candidate list
             if(!current_phrase->is_candidates_initialized()) {
                 calc_phrase_in_cursor(&current_phrase, nullptr);
-                auto [lock, dic] = share.primary_vocabulary.access();
-
-                auto dics = std::vector<MeCabModel*>{dic};
-                std::copy(share.additional_vocabularies.begin(), share.additional_vocabularies.end(), std::back_inserter(dics));
+                auto dic  = share.primary_vocabulary;
+                auto dics = std::vector<MeCabModel*>{dic.get()};
+                for(auto& dic : share.additional_vocabularies) {
+                    dics.emplace_back(dic.get());
+                }
                 current_phrase->reset_candidates(PhraseCandidates(dics, current_phrase->get_candidates()));
                 current_phrase->set_protection_level(ProtectionLevel::PreserveTranslation);
             }
@@ -654,8 +655,8 @@ class Context final : public fcitx::InputContextProperty {
             const auto katakana = u32tou8(katakana32);
             {
                 // try to get word information(if exists in dictionary)
-                auto [lock, dic] = share.primary_vocabulary.access();
-                auto& lattice    = *dic->lattice;
+                auto dic      = share.primary_vocabulary;
+                auto& lattice = *dic->lattice;
                 lattice.set_request_type(MECAB_ONE_BEST);
                 lattice.set_sentence(raw.data());
                 lattice.set_feature_constraint(0, raw.size(), katakana.data());

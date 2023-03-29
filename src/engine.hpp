@@ -271,16 +271,13 @@ class Engine {
         command += " -f utf-8 -t utf-8 ";
         command += csv;
         command += " >& /dev/null";
-        system(command.data());
+        [[maybe_unused]] auto code = system(command.data());
 
         reload_dictionary(bin.data());
     }
 
     auto reload_dictionary(const char* const user_dict = nullptr) -> void {
-        const auto new_dic = new MeCabModel(system_dictionary_path.data(), user_dict, true);
-        if(const auto old_dic = share.primary_vocabulary.swap(new_dic); old_dic != nullptr) {
-            delete old_dic;
-        }
+        share.primary_vocabulary = std::make_shared<MeCabModel>(system_dictionary_path.data(), user_dict, true);
     }
 
     auto recalc_cost(const Phrases& source) const -> long {
@@ -295,8 +292,8 @@ class Engine {
         const auto buffer      = std::move(source_data.first);
         const auto constraints = std::move(source_data.second);
 
-        auto [lock, dic] = share.primary_vocabulary.access();
-        auto& lattice    = *dic->lattice;
+        auto  dic     = share.primary_vocabulary;
+        auto& lattice = *dic->lattice;
         lattice.set_request_type(MECAB_ONE_BEST);
         lattice.set_sentence(buffer.data());
         set_constraints(lattice, constraints);
@@ -402,8 +399,8 @@ class Engine {
         const auto buffer      = std::move(source_data.first);
         const auto constraints = std::move(source_data.second);
         {
-            auto [lock, dic] = share.primary_vocabulary.access();
-            auto& lattice    = *dic->lattice;
+            auto  dic     = share.primary_vocabulary;
+            auto& lattice = *dic->lattice;
             lattice.set_request_type(best_only ? MECAB_ONE_BEST : MECAB_NBEST);
             lattice.set_sentence(buffer.data());
             set_constraints(lattice, constraints);
@@ -477,14 +474,14 @@ class Engine {
             if(entry.path().filename() == "system") {
                 system_dictionary_path = entry.path().string();
             } else {
-                auto new_dic = (MeCabModel*)(nullptr);
+                auto new_dic = std::unique_ptr<MeCabModel>();
                 try {
-                    new_dic = new MeCabModel(entry.path().string().data(), nullptr, false);
+                    new_dic.reset(new MeCabModel(entry.path().string().data(), nullptr, false));
                 } catch(const std::runtime_error&) {
                     FCITX_WARN() << "failed to load addtional dictionary. " << entry.path();
                     continue;
                 }
-                share.additional_vocabularies.emplace_back(new_dic);
+                share.additional_vocabularies.push_back(std::move(new_dic));
             }
         }
         dynamic_assert(!system_dictionary_path.empty(), "failed to find system dictionary");
@@ -535,10 +532,6 @@ class Engine {
             dictionary_update_event.wakeup();
             dictionary_updater.join();
             save_hisotry();
-        }
-        delete share.primary_vocabulary.unsafe_access();
-        for(auto d : share.additional_vocabularies) {
-            delete d;
         }
     }
 };
