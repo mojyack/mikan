@@ -51,9 +51,9 @@ class MeCabWord {
 
     MeCabWord() = default;
 
-    MeCabWord(const std::string& feature) : feature(feature) {}
+    MeCabWord(const std::string_view feature) : feature(feature) {}
 
-    MeCabWord(const std::string& feature, const short cattr_right, const short cattr_left, const short word_cost, const long total_cost, const bool from_system_dic)
+    MeCabWord(const std::string_view feature, const short cattr_right, const short cattr_left, const short word_cost, const long total_cost, const bool from_system_dic)
         : feature(feature),
           is_word_info_valid(true),
           cattr_right(from_system_dic ? cattr_right : 0),

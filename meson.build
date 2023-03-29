@@ -13,7 +13,6 @@ mecab_lib = cpp.find_library('mecab')
 
 shared_module(
     'mikan', mikan_files,
-    include_directories : config_include,
     dependencies : [fcitx_dep, mecab_lib],
     name_prefix : '',
     install : true,

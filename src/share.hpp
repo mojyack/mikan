@@ -13,12 +13,12 @@ enum class InsertSpaceOptions {
 
 class Share {
   public:
-    int                      candidate_page_size;
-    size_t                   auto_commit_threshold;
-    Critical<MeCabModel*>    primary_vocabulary = nullptr;
-    std::vector<MeCabModel*> additional_vocabularies;
-    KeyConfig                key_config;
-    InsertSpaceOptions       insert_space   = InsertSpaceOptions::Smart;
-    bool                     enable_history = true;
+    size_t                   auto_commit_threshold   = 8;
+    std::string              dictionary_path         = "/usr/share/mikan-im/dic";
+    int                      candidate_page_size     = 10;
+    InsertSpaceOptions       insert_space            = InsertSpaceOptions::Smart;
+    std::vector<MeCabModel*> additional_vocabularies = {};
+    KeyConfig                key_config              = {};
+    Critical<MeCabModel*>    primary_vocabulary      = nullptr;
 };
 } // namespace mikan

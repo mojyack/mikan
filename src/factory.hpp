@@ -11,7 +11,7 @@ namespace mikan {
 class Factory final : public fcitx::InputMethodEngine {
   private:
     Share                      share;
-    Engine                     engine;
+    engine::Engine             engine;
     fcitx::FactoryFor<Context> factory;
 
   public:

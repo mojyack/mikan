@@ -15,14 +15,14 @@ namespace mikan {
 class Context final : public fcitx::InputContextProperty {
   private:
     fcitx::InputContext& context;
-    Engine&              engine;
+    engine::Engine&      engine;
     Share&               share;
     Phrases*             phrases = nullptr;
     size_t               cursor;       // in bytes
     RomajiIndex          romaji_index; // used in handle_romaji().
     std::string          to_kana;
-    bool                 translation_changed = false;
     SentenceCandidates   sentences;
+    bool                 translation_changed = false;
     bool                 sentence_changed = false;
 
     static auto is_candidate_list_for(fcitx::InputContext& context, void* ptr) -> bool {
@@ -59,7 +59,7 @@ class Context final : public fcitx::InputContextProperty {
         if(phrases == nullptr) {
             return false;
         }
-        if(share.enable_history && sentences.get_index() != 0) {
+        if(sentences.get_index() != 0) {
             // if sentences.index != 0, it means user fixed translation manually.
             // so we have to check the differences between sentences[0] and *phrases.
             engine.request_fix_dictionary(*phrases);
@@ -655,10 +655,10 @@ class Context final : public fcitx::InputContextProperty {
 
             to_kana += romaji_8;
             auto filter_result = romaji_index.filter(to_kana);
-            if(filter_result.index() == filter_result.index_of<RomajiIndex::EmptyCache>()) {
+            if(filter_result.get<RomajiIndex::EmptyCache>()) {
                 to_kana       = romaji_8;
                 filter_result = romaji_index.filter(to_kana);
-                if(filter_result.index() == filter_result.index_of<RomajiIndex::EmptyCache>()) {
+                if(filter_result.get<RomajiIndex::EmptyCache>()) {
                     to_kana.clear();
                     break;
                 }
@@ -666,11 +666,11 @@ class Context final : public fcitx::InputContextProperty {
 
             apply_candidates();
             delete_surrounding_text();
-            if(filter_result.index() == filter_result.index_of<RomajiIndex::ExactOne>()) {
-                const auto exact = filter_result.get<RomajiIndex::ExactOne>().result;
-                append_kana(exact->kana);
-                if(exact->refill != nullptr) {
-                    to_kana = exact->refill;
+            if(const auto data =  filter_result.get<RomajiIndex::ExactOne>()) {
+                const auto& exact = *data->result;
+                append_kana(exact.kana);
+                if(exact.refill != nullptr) {
+                    to_kana = exact.refill;
                 } else {
                     to_kana.clear();
                 }
@@ -711,6 +711,6 @@ class Context final : public fcitx::InputContextProperty {
         }
     }
 
-    Context(fcitx::InputContext& context, Engine& engine, Share& share) : context(context), engine(engine), share(share) {}
+    Context(fcitx::InputContext& context, engine::Engine& engine, Share& share) : context(context), engine(engine), share(share) {}
 };
 } // namespace mikan

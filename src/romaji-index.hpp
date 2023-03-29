@@ -21,7 +21,7 @@ struct RomajiIndex {
                         *exact = i;
                         return r;
                     }
-                    r.emplace_back(std::end(romaji_table) - i);
+                    r.emplace_back(i - std::begin(romaji_table));
                 }
             }
         } else {
@@ -51,9 +51,9 @@ struct RomajiIndex {
     };
     using FilterResult = Variant<MultiResult, InvalidParam, EmptyCache, ExactOne>;
 
-    auto filter(const std::string& to_kana) -> FilterResult {
+    auto filter(const std::string_view to_kana) -> FilterResult {
         if(to_kana.empty()) {
-            return InvalidParam{};
+            return FilterResult(Tag<InvalidParam>());
         }
 
         auto use_cache = true;
@@ -85,7 +85,7 @@ struct RomajiIndex {
             }
         }
         if(cache.size() == 0) {
-            return EmptyCache{};
+            return FilterResult(Tag<EmptyCache>());
         }
         if(cache.size() == 1) {
             exact = &romaji_table[cache[0]];
@@ -93,10 +93,10 @@ struct RomajiIndex {
     end:
         if(exact != nullptr) {
             cache_source.clear();
-            return ExactOne{exact};
+            return FilterResult(Tag<ExactOne>(), exact);
         } else {
             cache_source = to_kana;
-            return MultiResult{};
+            return FilterResult(Tag<MultiResult>());
         }
     }
 };

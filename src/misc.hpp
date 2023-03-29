@@ -18,7 +18,7 @@ inline auto get_xdg_path(const char* const xdg_env_name, const char* const fallb
     } else {
         ret = std::string(xdg) + "/";
     }
-    ret.append("mikan/");
+    ret.append("mikan");
     return ret;
 }
 
@@ -46,7 +46,7 @@ inline auto get_dictionary_compiler_path() -> std::optional<std::string> {
     }
 }
 
-inline auto u8tou32(const std::string& u8) -> std::u32string {
+inline auto u8tou32(const std::string_view u8) -> std::u32string {
     auto u32 = std::u32string();
 
     auto p        = &u8[0];
@@ -60,7 +60,7 @@ inline auto u8tou32(const std::string& u8) -> std::u32string {
     return u32;
 }
 
-inline auto u32tou8(const std::u32string& u32) -> std::string {
+inline auto u32tou8(const std::u32string_view u32) -> std::string {
     auto u8 = std::string();
     for(const auto c : u32) {
         auto buffer = std::array<char, FCITX_UTF8_MAX_LENGTH>();
@@ -76,8 +76,8 @@ inline auto u32tou8(const char32_t u32) -> std::string {
     return buffer.data();
 }
 
-inline auto kana_to_romaji(const std::string& kana) -> std::string {
-    for(auto i = uint64_t(0); i < romaji_table.size(); i += 1) {
+inline auto kana_to_romaji(const std::string_view kana) -> std::string {
+    for(auto i = uint64_t(0); i < sizeof(romaji_table) / sizeof(RomajiKana); i += 1) {
         if(romaji_table[i].kana == kana) {
             return romaji_table[i].romaji;
         }

@@ -4,194 +4,193 @@
 #include <fstream>
 #include <thread>
 
-#include "config.h"
 #include "misc.hpp"
 #include "phrase.hpp"
 #include "share.hpp"
+#include "tmp.hpp"
+#include "util.hpp"
 
-namespace mikan {
+namespace mikan::engine {
+struct History {
+    std::string raw;
+    MeCabWord   translation;
+};
+
+struct FeatureConstriant {
+    size_t        begin;
+    size_t        end;
+    const Phrase* phrase;
+};
+
+inline auto split_strip(const std::string_view str, const char* const delm = " ") -> std::vector<std::string_view> {
+    auto vec = split(str, delm);
+    std::erase(vec, "");
+    return vec;
+}
+
+static auto parse_line_to_history(const std::string_view line) -> std::optional<History> {
+    const auto elms = split_strip(line, ",");
+    auto       hist = History();
+    if(elms.size() == 2) {
+        hist.raw         = elms[0];
+        hist.translation = MeCabWord(elms[1]);
+    } else if(elms.size() == 5) {
+        hist.raw = elms[0];
+
+        using Attr = unsigned short;
+        auto rattr = Attr();
+        auto lattr = Attr();
+        auto cost  = short();
+        try {
+            lattr = std::stoi(std::string(elms[1]));
+            rattr = std::stoi(std::string(elms[2]));
+            cost  = std::stoi(std::string(elms[3]));
+        } catch(const std::invalid_argument&) {
+            return std::nullopt;
+        }
+        hist.translation = MeCabWord(elms[4], rattr, lattr, cost, 0, true);
+    } else {
+        return std::nullopt;
+    }
+    return hist;
+}
+
+static auto parse_line_to_key_value(const std::string_view line) -> std::pair<std::string_view, std::string_view> {
+    const auto vec = split_strip(line);
+    if(vec.size() != 2) {
+        return {};
+    }
+    return {vec[0], vec[1]};
+}
+
+static auto build_raw_and_constraints(const Phrases& source, const bool ignore_protection) -> std::pair<std::string, std::vector<FeatureConstriant>> {
+    auto feature_constriants = std::vector<FeatureConstriant>();
+    auto buffer              = std::string();
+    for(auto p = source.begin(); p != source.end(); p += 1) {
+        const auto& raw = p->get_raw().get_feature();
+        if(!ignore_protection && p->get_protection_level() != ProtectionLevel::None) {
+            auto begin = buffer.size();
+            auto end   = begin + raw.size();
+            feature_constriants.emplace_back(FeatureConstriant{begin, end, &*p});
+        };
+        buffer += raw;
+    }
+    return std::make_pair(buffer, feature_constriants);
+}
+
+static auto load_text_dictionary(const std::string_view path) -> std::vector<History> {
+    auto res = std::vector<History>();
+    if(!std::filesystem::is_regular_file(path)) {
+        return res;
+    }
+    auto source = std::fstream(path);
+    auto l      = std::string();
+    while(std::getline(source, l)) {
+        const auto hist = parse_line_to_history(l);
+        if(!hist.has_value()) {
+            continue;
+        }
+        res.emplace_back(hist.value());
+    }
+    return res;
+}
+
+static auto set_constraints(MeCab::Lattice& lattice, const std::vector<FeatureConstriant>& constraints) -> void {
+    for(const auto& f : constraints) {
+        auto& phrase = *f.phrase;
+        lattice.set_feature_constraint(f.begin,
+                                       f.end,
+                                       phrase.get_protection_level() == ProtectionLevel::PreserveTranslation ? phrase.get_translated().get_feature().data() : "*");
+    }
+}
+
+static auto parse_nodes(MeCab::Lattice& lattice, const bool needs_parsed_feature) -> std::pair<std::string, Phrases> {
+    auto parsed         = Phrases();
+    auto parsed_feature = std::string();
+    for(const auto* node = lattice.bos_node(); node; node = node->next) {
+        if(node->stat == MECAB_BOS_NODE || node->stat == MECAB_EOS_NODE) {
+            continue;
+        }
+        parsed.emplace_back(node);
+        if(needs_parsed_feature) {
+            parsed_feature += node->feature;
+        }
+    }
+    return std::make_pair(parsed_feature, parsed);
+}
+
 class Engine {
   private:
-    struct History {
-        std::string raw;
-        MeCabWord   translation;
-    };
-
-    struct FeatureConstriant {
-        size_t        begin;
-        size_t        end;
-        const Phrase* phrase;
-    };
-
     Share&                   share;
     std::string              system_dictionary_path;
     std::string              history_file_path;
-    std::string              history_dictionary_path;
     std::string              dictionary_compiler_path;
     std::vector<std::string> user_dictionary_paths;
     std::thread              dictionary_updater;
-    bool                     finish_dictionary_updater;
     Event                    dictionary_update_event;
     std::vector<History>     histories;
     Critical<Sentences>      fix_requests;
-
-    static auto parse_line_to_history(const std::string& line) -> std::optional<History> {
-        auto comma_index = size_t(0);
-        auto commas      = std::array<size_t, 4>();
-        auto pos         = line.find(',');
-        while(pos != std::string::npos) {
-            if(comma_index >= 4) {
-                comma_index = 0;
-                break;
-            }
-            commas[comma_index] = pos;
-            comma_index += 1;
-            pos = line.find(',', pos + 1);
-        }
-        if(comma_index != 1 && comma_index != 4) {
-            // error.
-            return std::nullopt;
-        }
-        auto hist = History{.raw = std::string(line.begin() + 0, line.begin() + commas[0])};
-        if(comma_index == 1) {
-            hist.translation = MeCabWord(std::string(line.begin() + commas[0] + 1, line.end()));
-        } else {
-            using Attr = unsigned short;
-            auto rattr = Attr(), lattr = Attr();
-            auto cost = short();
-            try {
-                lattr = stoi(std::string(line.begin() + commas[0] + 1, line.begin() + commas[1]));
-                rattr = stoi(std::string(line.begin() + commas[1] + 1, line.begin() + commas[2]));
-                cost  = stoi(std::string(line.begin() + commas[2] + 1, line.begin() + commas[3]));
-            } catch(const std::invalid_argument&) {
-                return std::nullopt;
-                // error.
-            }
-            hist.translation = MeCabWord(std::string(line.begin() + commas[3] + 1, line.end()), rattr, lattr, cost, 0, true);
-        }
-        if(hist.raw.empty() || hist.translation.get_feature().empty()) {
-            return std::nullopt;
-        }
-        return hist;
-    }
-
-    static auto build_raw_and_constraints(const Phrases& source, const bool ignore_protection) -> std::pair<std::string, std::vector<FeatureConstriant>> {
-        auto feature_constriants = std::vector<FeatureConstriant>();
-        auto buffer              = std::string();
-        for(auto p = source.begin(); p != source.end(); p += 1) {
-            const auto& raw = p->get_raw().get_feature();
-            if(!ignore_protection && p->get_protection_level() != ProtectionLevel::None) {
-                auto begin = buffer.size();
-                auto end   = begin + raw.size();
-                feature_constriants.emplace_back(FeatureConstriant{begin, end, &*p});
-            };
-            buffer += raw;
-        }
-        return std::make_pair(buffer, feature_constriants);
-    }
-
-    static auto load_histories(const char* path) -> std::vector<History> {
-        auto res = std::vector<History>();
-        if(!std::filesystem::is_regular_file(path)) {
-            return res;
-        }
-        auto source = std::fstream(path);
-        auto l      = std::string();
-        while(std::getline(source, l)) {
-            const auto hist = parse_line_to_history(l);
-            if(!hist.has_value()) {
-                continue;
-            }
-            res.emplace_back(hist.value());
-        }
-        return res;
-    }
-
-    static auto set_constraints(MeCab::Lattice& lattice, const std::vector<FeatureConstriant>& constraints) -> void {
-        for(const auto& f : constraints) {
-            auto& phrase = *f.phrase;
-            lattice.set_feature_constraint(f.begin, f.end, phrase.get_protection_level() == ProtectionLevel::PreserveTranslation ? phrase.get_translated().get_feature().data() : "*");
-        }
-    }
-
-    static auto parse_nodes(MeCab::Lattice& lattice, const bool needs_parsed_feature) -> std::pair<std::string, Phrases> {
-        auto parsed         = Phrases();
-        auto parsed_feature = std::string();
-        for(const auto* node = lattice.bos_node(); node; node = node->next) {
-            if(node->stat == MECAB_BOS_NODE || node->stat == MECAB_EOS_NODE) {
-                continue;
-            }
-            parsed.emplace_back(node);
-            if(needs_parsed_feature) {
-                parsed_feature += node->feature;
-            }
-        }
-        return std::make_pair(parsed_feature, parsed);
-    }
+    std::string              tmpdir;
+    bool                     finish_dictionary_updater = false;
+    bool                     enable_history            = true;
 
     auto load_configuration() -> bool {
-        constexpr auto CONFIG_FILE_NAME              = "mikan.conf";
-        constexpr auto CANDIDATE_PAGE_SIZE           = "candidate_page_size";
-        constexpr auto AUTO_COMMIT_THRESHOLD         = "auto_commit_threshold";
-        constexpr auto DICTIONARY                    = "dictionary";
-        constexpr auto INSERT_SPACE                  = "insert_space";
-        constexpr auto HISTORY                       = "history";
-        constexpr auto DEFAULT_CANDIDATE_PAGE_SIZE   = 10;
-        constexpr auto DEFAULT_AUTO_COMMIT_THRESHOLD = 8;
-        const auto     user_config_dir               = get_user_config_dir();
+        const auto user_config_dir = get_user_config_dir();
         if(!std::filesystem::is_directory(user_config_dir) && !std::filesystem::create_directories(user_config_dir)) {
             return false;
         }
-        share.candidate_page_size   = DEFAULT_CANDIDATE_PAGE_SIZE;
-        share.auto_commit_threshold = DEFAULT_AUTO_COMMIT_THRESHOLD;
-        {
-            auto config = std::fstream(user_config_dir + CONFIG_FILE_NAME);
-            auto l      = std::string();
-            while(std::getline(config, l)) {
-                auto entry_name = std::string(), value = std::string();
-                {
-                    const auto space = l.find(' ');
-                    if(space == std::string::npos) {
-                        continue;
-                    }
-                    entry_name = l.substr(0, space);
-                    for(auto i = space; l[i] != '\0'; i += 1) {
-                        if(space != ' ' && space != '\t') {
-                            break;
-                        }
-                    }
-                    value = l.substr(space + 1);
+        auto config = std::fstream(user_config_dir + "/mikan.conf");
+        auto line   = std::string();
+        while(std::getline(config, line)) {
+            if(line.empty() || line[0] == '#') {
+                continue;
+            }
+
+            auto [key, value] = parse_line_to_key_value(line);
+            if(key.empty()) {
+                continue;
+            }
+
+            auto error = false;
+            if(key == "candidate_page_size") {
+                try {
+                    share.candidate_page_size = std::stoi(std::string(value));
+                } catch(const std::invalid_argument&) {
+                    error = true;
                 }
-                auto error = false;
-                if(entry_name == CANDIDATE_PAGE_SIZE) {
-                    try {
-                        share.candidate_page_size = std::stoi(value);
-                    } catch(const std::invalid_argument&) {
-                        error = true;
-                    }
-                } else if(entry_name == AUTO_COMMIT_THRESHOLD) {
-                    try {
-                        share.auto_commit_threshold = std::stoi(value);
-                    } catch(const std::invalid_argument&) {
-                        error = true;
-                    }
-                } else if(entry_name == DICTIONARY) {
-                    emplace_unique(user_dictionary_paths, user_config_dir + value);
-                } else if(entry_name == INSERT_SPACE) {
-                    const auto option = value == "on" ? InsertSpaceOptions::On : value == "off" ? InsertSpaceOptions::Off
-                                                                             : value == "smart" ? InsertSpaceOptions::Smart
-                                                                                                : InsertSpaceOptions::None;
-                    if(option != InsertSpaceOptions::None) {
-                        share.insert_space = option;
-                    } else {
-                        error = true;
-                    }
-                } else if(entry_name == HISTORY) {
-                    share.enable_history = value == "on";
+            } else if(key == "auto_commit_threshold") {
+                try {
+                    share.auto_commit_threshold = std::stoi(std::string(value));
+                } catch(const std::invalid_argument&) {
+                    error = true;
                 }
-                if(error) {
-                    FCITX_WARN() << "error while parsing configuration: " << entry_name;
+            } else if(key == "dictionary") {
+                emplace_unique(user_dictionary_paths, user_config_dir + "/" + std::string(value));
+            } else if(key == "insert_space") {
+                if(value == "on") {
+                    share.insert_space = InsertSpaceOptions::On;
+                } else if(value == "off") {
+                    share.insert_space = InsertSpaceOptions::Off;
+                } else if(value == "smart") {
+                    share.insert_space = InsertSpaceOptions::Smart;
+                } else {
+                    error = true;
                 }
+            } else if(key == "history") {
+                if(value == "on") {
+                    enable_history = true;
+                } else if(value == "off") {
+                    enable_history = false;
+                } else {
+                    error = true;
+                }
+            } else if(key == "dictionaries") {
+                share.dictionary_path = value;
+            } else {
+                error = true;
+            }
+            if(error) {
+                FCITX_WARN() << "error while parsing configuration: " << line;
             }
         }
         return true;
@@ -240,45 +239,45 @@ class Engine {
         }
     }
 
-    auto compile_user_dictionary() const -> bool {
-        auto csv = std::string("/tmp/mikan-tmp");
-        while(std::filesystem::exists(csv)) {
-            csv += '.';
+    auto dump_internal_dict(const std::string_view path) const -> void {
+        auto to_compile = std::vector<History>();
+        for(const auto& d : user_dictionary_paths) {
+            auto hists = load_text_dictionary(d.data());
+            std::copy(hists.begin(), hists.end(), std::back_inserter(to_compile));
         }
+        std::copy(histories.begin(), histories.end(), std::back_inserter(to_compile));
+        auto file = std::ofstream(path);
+        for(const auto& l : to_compile) {
+            const auto& t     = l.translation;
+            const auto  lattr = t.has_valid_word_info() ? t.get_cattr_left() : 0;
+            const auto  rattr = t.has_valid_word_info() ? t.get_cattr_right() : 0;
+            const auto  cost  = t.has_valid_word_info() ? t.get_word_cost() : 0;
+            file << l.raw << "," << std::to_string(lattr) << "," << std::to_string(rattr) << "," << std::to_string(cost) << "," << t.get_feature() << std::endl;
+        }
+    }
 
-        {
-            auto to_compile = std::vector<History>();
-            for(const auto& d : user_dictionary_paths) {
-                auto hists = load_histories(d.data());
-                std::copy(hists.begin(), hists.end(), std::back_inserter(to_compile));
-            }
-            std::copy(histories.begin(), histories.end(), std::back_inserter(to_compile));
-            auto file = std::ofstream(csv);
-            for(const auto& l : to_compile) {
-                const auto& t     = l.translation;
-                const auto  lattr = t.has_valid_word_info() ? t.get_cattr_left() : 0;
-                const auto  rattr = t.has_valid_word_info() ? t.get_cattr_right() : 0;
-                const auto  cost  = t.has_valid_word_info() ? t.get_word_cost() : 0;
-                file << l.raw << "," << std::to_string(lattr) << "," << std::to_string(rattr) << "," << std::to_string(cost) << "," << t.get_feature() << std::endl;
-            }
-        }
+    auto compile_and_reload_user_dictionary() -> void {
+        auto       tmp = TemporaryDirectory();
+        const auto csv = tmp.str() + "/dict.csv";
+        const auto bin = tmp.str() + "/dict.bin";
+        dump_internal_dict(csv);
 
         auto command = std::string();
         command += dictionary_compiler_path;
         command += " -d ";
         command += system_dictionary_path;
         command += " -u ";
-        command += history_dictionary_path;
+        command += bin;
         command += " -f utf-8 -t utf-8 ";
         command += csv;
         command += " >& /dev/null";
-        const auto exit_code = WEXITSTATUS(system(command.data()));
-        std::filesystem::remove(csv);
-        return exit_code == 0;
+        system(command.data());
+
+        reload_dictionary(bin.data());
     }
 
-    auto reload_dictionary() -> void {
-        const auto new_dic = new MeCabModel(system_dictionary_path.data(), history_dictionary_path.data(), true);
+    auto reload_dictionary(const char* const user_dict = nullptr) -> void {
+        const auto new_dic = new MeCabModel(system_dictionary_path.data(), user_dict, true);
         if(const auto old_dic = share.primary_vocabulary.swap(new_dic); old_dic != nullptr) {
             delete old_dic;
         }
@@ -318,8 +317,7 @@ class Engine {
                 add_history({word.get_feature(), word});
             }
             if(added) {
-                compile_user_dictionary();
-                reload_dictionary();
+                compile_and_reload_user_dictionary();
             }
         }
 
@@ -370,9 +368,29 @@ class Engine {
                 word.override_word_cost(current_cost - cost_decrement);
                 add_history(d);
             }
-            compile_user_dictionary();
-            reload_dictionary();
+            compile_and_reload_user_dictionary();
         }
+    }
+
+    auto dictionary_updater_main() -> void {
+    loop:
+        if(finish_dictionary_updater) {
+            return;
+        }
+        auto request = std::optional<Phrases>();
+        {
+            auto [lock, requests] = fix_requests.access();
+            if(!requests.empty()) {
+                request = std::move(requests[0]);
+                requests.erase(requests.begin());
+            }
+        }
+        if(request) {
+            compare_and_fix_dictionary(*request);
+        } else {
+            dictionary_update_event.wait();
+        }
+        goto loop;
     }
 
   public:
@@ -442,17 +460,20 @@ class Engine {
     }
 
     auto request_fix_dictionary(Phrases wants) -> void {
+        if(!enable_history) {
+            return;
+        }
+
         auto [lock, requests] = fix_requests.access();
         requests.emplace_back(wants);
         dictionary_update_event.wakeup();
     }
 
     Engine(Share& share) : share(share) {
-        // load configuration
         if(!load_configuration()) {
             panic("failed to load configuration.");
         }
-        for(const auto& entry : std::filesystem::directory_iterator(DICTIONARY_PATH)) {
+        for(const auto& entry : std::filesystem::directory_iterator(share.dictionary_path)) {
             if(entry.path().filename() == "system") {
                 system_dictionary_path = entry.path().string();
             } else {
@@ -467,43 +488,26 @@ class Engine {
             }
         }
         dynamic_assert(!system_dictionary_path.empty(), "failed to find system dictionary");
-        const auto cache_dir = get_user_cache_dir();
-        if(!std::filesystem::is_directory(cache_dir)) {
-            std::filesystem::create_directories(cache_dir);
-        }
-        history_file_path       = cache_dir + "history.csv";
-        history_dictionary_path = cache_dir + "history.dic";
 
-        const auto compiler_path = get_dictionary_compiler_path();
-        if(compiler_path.has_value()) {
-            dictionary_compiler_path = compiler_path.value() + "/mecab-dict-index";
-        }
-
-        histories = load_histories(history_file_path.data());
-        compile_user_dictionary();
-        reload_dictionary();
-
-        finish_dictionary_updater = false;
-        dictionary_updater        = std::thread([this]() {
-            while(!finish_dictionary_updater) {
-                auto request = Phrases();
-                do {
-                    {
-                        auto [lock, requests] = fix_requests.access();
-                        if(requests.empty()) {
-                            break;
-                        }
-                        request = std::move(requests[0]);
-                        requests.erase(requests.begin());
-                    }
-                    compare_and_fix_dictionary(request);
-                } while(0);
-                if(!fix_requests.access().second.empty()) {
-                    continue;
-                }
-                dictionary_update_event.wait();
+        if(enable_history) {
+            const auto cache_dir = get_user_cache_dir();
+            if(!std::filesystem::is_directory(cache_dir)) {
+                std::filesystem::create_directories(cache_dir);
             }
-        });
+            history_file_path = cache_dir + "/history.csv";
+
+            histories          = load_text_dictionary(history_file_path.data());
+            dictionary_updater = std::thread(std::bind(&Engine::dictionary_updater_main, this));
+        }
+
+        if(const auto compiler_path = get_dictionary_compiler_path()) {
+            dictionary_compiler_path = compiler_path.value() + "/mecab-dict-index";
+            compile_and_reload_user_dictionary();
+        } else {
+            FCITX_WARN() << "missing dictionary compiler";
+            enable_history = false;
+            reload_dictionary();
+        }
 
         share.key_config.keys.resize(static_cast<size_t>(Actions::ActionsLimit));
         share.key_config[Actions::Backspace]          = {{FcitxKey_BackSpace}};
@@ -526,14 +530,16 @@ class Engine {
     }
 
     ~Engine() {
-        finish_dictionary_updater = true;
-        dictionary_update_event.wakeup();
-        dictionary_updater.join();
+        if(enable_history) {
+            finish_dictionary_updater = true;
+            dictionary_update_event.wakeup();
+            dictionary_updater.join();
+            save_hisotry();
+        }
         delete share.primary_vocabulary.unsafe_access();
         for(auto d : share.additional_vocabularies) {
             delete d;
         }
-        save_hisotry();
     }
 };
-} // namespace mikan
+} // namespace mikan::engine
