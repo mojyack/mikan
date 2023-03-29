@@ -4,9 +4,15 @@
 namespace mikan {
 class CandidateWord : public fcitx::CandidateWord {
   public:
+    auto update_text(std::string str) {
+        setText(fcitx::Text(std::move(str)));
+    }
+
     auto select(fcitx::InputContext* inputContext) const -> void override {}
-    CandidateWord(fcitx::Text text) : fcitx::CandidateWord(std::move(text)){};
-    ~CandidateWord() = default;
+
+    CandidateWord(fcitx::Text text) : fcitx::CandidateWord(std::move(text)) {}
+
+    ~CandidateWord() {}
 };
 
 enum class CandidateListKind {
@@ -150,6 +156,10 @@ class KanaDisplay : public CandidateListBase {
     }
 
   public:
+    auto upate_text(std::string str) {
+        text.update_text(std::move(str));
+    }
+
     auto label(const int /*idx*/) const -> const fcitx::Text& override {
         const static auto label = fcitx::Text("");
         return label;

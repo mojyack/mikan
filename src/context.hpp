@@ -655,7 +655,7 @@ class Context final : public fcitx::InputContextProperty {
             const auto katakana = u32tou8(katakana32);
             {
                 // try to get word information(if exists in dictionary)
-                auto dic      = share.primary_vocabulary;
+                auto  dic     = share.primary_vocabulary;
                 auto& lattice = *dic->lattice;
                 lattice.set_request_type(MECAB_ONE_BEST);
                 lattice.set_sentence(raw.data());
@@ -734,9 +734,16 @@ class Context final : public fcitx::InputContextProperty {
         if(phrases == nullptr) {
             context.inputPanel().setCandidateList(nullptr);
             context.updateUserInterface(fcitx::UserInterfaceComponent::InputPanel);
-        } else if(const auto base = get_candidate_list_base(context); base == nullptr || base->get_kind() == CandidateListKind::KanaDisplay) {
-            context.inputPanel().setCandidateList(std::make_unique<KanaDisplay>(nullptr, build_kana_text()));
-            context.updateUserInterface(fcitx::UserInterfaceComponent::InputPanel);
+        } else {
+            const auto base = get_candidate_list_base(context);
+            if(base == nullptr) {
+                context.inputPanel().setCandidateList(std::make_unique<KanaDisplay>(nullptr, build_kana_text()));
+                context.updateUserInterface(fcitx::UserInterfaceComponent::InputPanel);
+            } else if(base->get_kind() == CandidateListKind::KanaDisplay) {
+                const auto display = downcast<KanaDisplay>(base);
+                display->upate_text(build_kana_text());
+                context.updateUserInterface(fcitx::UserInterfaceComponent::InputPanel);
+            }
         }
 
         return;
