@@ -55,7 +55,7 @@ class PhraseCandidates : public Candidates {
     auto override_translated(const MeCabWord& translated) -> void {
         data[0] = translated;
     }
-    
+
     auto override_translated(MeCabWord&& translated) -> void {
         data[0] = std::move(translated);
     }
@@ -154,115 +154,6 @@ class PhraseCandidates : public Candidates {
         }
         index                            = 0;
         is_initialized_with_dictionaries = true;
-    }
-};
-
-class CandidateWord : public fcitx::CandidateWord {
-  public:
-    auto select(fcitx::InputContext* inputContext) const -> void override {}
-    CandidateWord(fcitx::Text text) : fcitx::CandidateWord(std::move(text)){};
-    ~CandidateWord() = default;
-};
-
-class CandidateList : public fcitx::CandidateList,
-                      public fcitx::PageableCandidateList,
-                      public fcitx::CursorMovableCandidateList {
-  private:
-    Candidates* const                           data;
-    const size_t                                page_size;
-    std::vector<std::unique_ptr<CandidateWord>> words;
-
-    auto index_to_local(const size_t idx) const -> size_t {
-        return idx - currentPage() * page_size;
-    }
-
-    auto index_to_global(const size_t idx) const -> size_t {
-        return idx + currentPage() * page_size;
-    }
-
-  public:
-    // CandidateList
-    auto label(const int idx) const -> const fcitx::Text& override {
-        const static auto label = fcitx::Text("");
-        return label;
-    }
-
-    auto candidate(const int idx) const -> const CandidateWord& override {
-        return *words[index_to_global(idx)];
-    }
-
-    auto cursorIndex() const -> int override {
-        return index_to_local(data->get_index());
-    }
-
-    auto size() const -> int override {
-        const auto size   = data->get_data_size();
-        const auto remain = size - currentPage() * page_size;
-        return remain > page_size ? page_size : remain;
-    }
-
-    // PageableCandidateList
-    auto hasPrev() const -> bool override {
-        return currentPage() >= 1;
-    }
-
-    auto hasNext() const -> bool override {
-        return currentPage() + 1 < totalPages();
-    }
-
-    auto prev() -> void override {
-        auto add = page_size;
-        if(add > static_cast<size_t>(cursorIndex())) {
-            add = cursorIndex();
-        }
-        data->move_index(-add);
-    }
-
-    auto next() -> void override {
-        auto       add  = page_size;
-        const auto size = data->get_data_size();
-        if(cursorIndex() + add >= static_cast<size_t>(size)) {
-            add = size - 1 - cursorIndex();
-        }
-        data->move_index(page_size);
-    }
-
-    auto usedNextBefore() const -> bool override {
-        return true;
-    }
-
-    auto totalPages() const -> int override {
-        const auto size = data->get_data_size();
-        return size / page_size + 1;
-    }
-
-    auto currentPage() const -> int override {
-        return data->get_index() / page_size;
-    }
-
-    auto setPage(int page) -> void override {
-        data->set_index(page * page_size);
-    }
-
-    auto layoutHint() const -> fcitx::CandidateLayoutHint override {
-        return fcitx::CandidateLayoutHint::NotSet;
-    }
-
-    // CursorMovableCandidateList
-    auto prevCandidate() -> void override {
-        data->move_index(-1);
-    }
-
-    auto nextCandidate() -> void override {
-        data->move_index(1);
-    }
-
-    CandidateList(Candidates* const data, size_t page_size) : data(data), page_size(page_size) {
-        setPageable(this);
-        setCursorMovable(this);
-        for(const auto& w : data->get_labels()) {
-            words.emplace_back(std::make_unique<CandidateWord>(fcitx::Text(w)));
-        }
     }
 };
 } // namespace mikan

@@ -4,9 +4,9 @@
 #include <fcitx/inputcontextproperty.h>
 #include <fcitx/inputpanel.h>
 
+#include "candidate-list.hpp"
 #include "engine.hpp"
 #include "misc.hpp"
-#include "phrase.hpp"
 #include "romaji-index.hpp"
 #include "romaji-table.hpp"
 #include "share.hpp"
@@ -23,11 +23,23 @@ class Context final : public fcitx::InputContextProperty {
     std::string          to_kana;
     SentenceCandidates   sentences;
     bool                 translation_changed = false;
-    bool                 sentence_changed = false;
+    bool                 sentence_changed    = false;
 
-    static auto is_candidate_list_for(fcitx::InputContext& context, void* ptr) -> bool {
+    static auto is_candidate_list_for(fcitx::InputContext& context, const Candidates* const candidates) -> bool {
+        const auto base = get_candidate_list_base(context);
+        if(base == nullptr) {
+            return false;
+        }
+        return base->get_candidates() == candidates;
+    }
+
+    static auto get_candidate_list_base(fcitx::InputContext& context) -> CandidateListBase* {
         const auto sp = context.inputPanel().candidateList();
-        return sp && !(sp.get() != ptr);
+        if(!sp) {
+            return nullptr;
+        }
+
+        return downcast<CandidateListBase>(sp.get());
     }
 
     auto commit_phrase(const Phrase* const phrase) -> void {
@@ -213,12 +225,35 @@ class Context final : public fcitx::InputContextProperty {
         return preedit;
     }
 
+    auto build_kana_text() const -> std::string {
+        if(phrases == nullptr) {
+            return to_kana;
+        }
+
+        auto text    = std::string();
+        auto current = (Phrase*)(nullptr);
+        calc_phrase_in_cursor(&current);
+        for(auto i = size_t(0), limit = phrases->size(); i < limit; i += 1) {
+            const auto& phrase = (*phrases)[i];
+            text += phrase.get_raw().get_feature();
+            if(&phrase == current) {
+                text += to_kana;
+            }
+            if(share.insert_space != InsertSpaceOptions::Off && i + 1 != limit) {
+                text += " ";
+            }
+        }
+
+        return text;
+    }
+
     auto apply_candidates() -> void {
-        if(!context.inputPanel().candidateList()) {
+        const auto base = get_candidate_list_base(context);
+        if(base == nullptr || base->get_kind() == CandidateListKind::KanaDisplay) {
             return;
         }
-        // hide candidate list window
         context.inputPanel().setCandidateList(nullptr);
+        context.updateUserInterface(fcitx::UserInterfaceComponent::InputPanel);
     }
 
     auto auto_commit() -> void {
@@ -303,7 +338,7 @@ class Context final : public fcitx::InputContextProperty {
                 break;
             }
 
-            if(!is_candidate_list_for(context, current_phrase)) {
+            if(!is_candidate_list_for(context, &current_phrase->get_candidates())) {
                 context.inputPanel().setCandidateList(std::make_unique<CandidateList>(&current_phrase->get_candidates(), share.candidate_page_size));
             }
             auto candidate_list = context.inputPanel().candidateList().get();
@@ -318,6 +353,7 @@ class Context final : public fcitx::InputContextProperty {
             } else if(share.key_config.match(Actions::CandidatePagePrev, event)) {
                 candidate_list->toPageable()->next();
             }
+            context.updateUserInterface(fcitx::UserInterfaceComponent::InputPanel);
             goto end;
         } while(0);
 
@@ -328,6 +364,7 @@ class Context final : public fcitx::InputContextProperty {
             }
             if(!to_kana.empty()) {
                 pop_back_u8(to_kana);
+                apply_candidates();
                 goto end;
             }
             move_cursor_back();
@@ -405,6 +442,7 @@ class Context final : public fcitx::InputContextProperty {
             } else {
                 candidate_list->toCursorMovable()->prevCandidate();
             }
+            context.updateUserInterface(fcitx::UserInterfaceComponent::InputPanel);
             phrases = sentences.get_current_ptr();
             for(auto& p : *phrases) {
                 p.set_protection_level(ProtectionLevel::PreserveTranslation);
@@ -492,9 +530,9 @@ class Context final : public fcitx::InputContextProperty {
             a->set_protection_level(ProtectionLevel::PreserveSeparation);
             b->set_protection_level(ProtectionLevel::PreserveSeparation);
 
-            apply_candidates();
             *phrases         = translate_phrases(*phrases, true)[0];
             sentence_changed = true;
+            apply_candidates();
             goto end;
         } while(0);
 
@@ -511,11 +549,13 @@ class Context final : public fcitx::InputContextProperty {
             auto cursor_in_phrase = size_t();
             calc_phrase_in_cursor(&current_phrase, &cursor_in_phrase);
             if(current_phrase == nullptr) {
+                apply_candidates();
                 goto end;
             }
             const auto left         = share.key_config.match(Actions::MergePhraseLeft, event);
             const auto merge_phrase = current_phrase + (left ? -1 : 1);
             if(merge_phrase < &(*phrases)[0] || merge_phrase > &phrases->back()) {
+                apply_candidates();
                 goto end;
             }
 
@@ -528,8 +568,8 @@ class Context final : public fcitx::InputContextProperty {
             const auto phrase_index = merge_phrase - &(*phrases)[0];
             phrases->erase(phrases->begin() + phrase_index);
 
-            apply_candidates();
             *phrases = translate_phrases(*phrases, true)[0];
+            apply_candidates();
             goto end;
         } while(0);
 
@@ -550,6 +590,7 @@ class Context final : public fcitx::InputContextProperty {
             }
             const auto move_phrase = current_phrase + 1;
             if(move_phrase > &phrases->back()) {
+                apply_candidates();
                 goto end;
             }
 
@@ -580,9 +621,9 @@ class Context final : public fcitx::InputContextProperty {
 
             current_phrase->set_protection_level(ProtectionLevel::PreserveSeparation);
             move_phrase->set_protection_level(ProtectionLevel::PreserveSeparation);
-            apply_candidates();
             *phrases         = translate_phrases(*phrases, true)[0];
             sentence_changed = true;
+            apply_candidates();
             goto end;
         } while(0);
 
@@ -636,8 +677,8 @@ class Context final : public fcitx::InputContextProperty {
                 }
             }
 
-            apply_candidates();
             current_phrase->set_protection_level(ProtectionLevel::PreserveTranslation);
+            apply_candidates();
             goto end;
         } while(0);
 
@@ -666,7 +707,7 @@ class Context final : public fcitx::InputContextProperty {
 
             apply_candidates();
             delete_surrounding_text();
-            if(const auto data =  filter_result.get<RomajiIndex::ExactOne>()) {
+            if(const auto data = filter_result.get<RomajiIndex::ExactOne>()) {
                 const auto& exact = *data->result;
                 append_kana(exact.kana);
                 if(exact.refill != nullptr) {
@@ -685,10 +726,18 @@ class Context final : public fcitx::InputContextProperty {
             event.filterAndAccept();
             panel.setClientPreedit(build_preedit_text());
             context.updatePreedit();
-            context.updateUserInterface(fcitx::UserInterfaceComponent::InputPanel);
         } else if(phrases != nullptr) {
             event.filterAndAccept();
         }
+
+        if(phrases == nullptr) {
+            context.inputPanel().setCandidateList(nullptr);
+            context.updateUserInterface(fcitx::UserInterfaceComponent::InputPanel);
+        } else if(const auto base = get_candidate_list_base(context); base == nullptr || base->get_kind() == CandidateListKind::KanaDisplay) {
+            context.inputPanel().setCandidateList(std::make_unique<KanaDisplay>(nullptr, build_kana_text()));
+            context.updateUserInterface(fcitx::UserInterfaceComponent::InputPanel);
+        }
+
         return;
     }
 
