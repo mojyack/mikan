@@ -1,3 +1,3 @@
 # mikan
 
-https://user-images.githubusercontent.com/66899529/228747726-47edbcc5-b094-44ad-91d7-f01721e9f550.mp4
+https://user-images.githubusercontent.com/66899529/228751373-f00910ae-6932-439b-9258-e1c76ea9a6d8.mp4
