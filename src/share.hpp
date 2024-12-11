@@ -1,7 +1,6 @@
 #pragma once
 #include "configuration.hpp"
 #include "mecab-model.hpp"
-#include "util.hpp"
 
 namespace mikan {
 enum class InsertSpaceOptions {

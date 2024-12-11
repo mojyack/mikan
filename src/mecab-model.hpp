@@ -1,40 +1,17 @@
 #pragma once
-#include <filesystem>
-#include <string>
+#include <memory>
 
 #include <mecab.h>
 
-#include "util.hpp"
-
 namespace mikan {
 struct MeCabModel {
-    const bool      is_valid             = false;
-    const bool      is_system_dictionary = false;
-    MeCab::Model*   model;
-    MeCab::Tagger*  tagger;
-    MeCab::Lattice* lattice;
+    const bool                      is_valid             = false;
+    const bool                      is_system_dictionary = false;
+    std::unique_ptr<MeCab::Model>   model;
+    std::unique_ptr<MeCab::Tagger>  tagger;
+    std::unique_ptr<MeCab::Lattice> lattice;
 
     MeCabModel() = default;
-
-    MeCabModel(const char* const dictionary, const char* const user_dictionary, const bool is_system_dictionary) : is_valid(true), is_system_dictionary(is_system_dictionary) {
-        auto dict_path = std::string("-d ") + dictionary;
-        if(user_dictionary != nullptr && std::filesystem::is_regular_file(user_dictionary)) {
-            dict_path += " -u ";
-            dict_path += user_dictionary;
-        }
-        model = MeCab::createModel(dict_path.data());
-        dynamic_assert(model != nullptr, "failed to load system dictionary");
-
-        tagger  = model->createTagger();
-        lattice = model->createLattice();
-    }
-
-    ~MeCabModel() {
-        if(is_valid) {
-            delete lattice;
-            delete tagger;
-            delete model;
-        }
-    }
+    MeCabModel(const char* dictionary, const char* user_dictionary, bool is_system_dictionary);
 };
 } // namespace mikan
