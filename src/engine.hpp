@@ -36,7 +36,7 @@ class Engine {
     auto load_configuration() -> bool;
     auto add_history(const History& word) -> bool;
     auto save_hisotry() const -> void;
-    auto dump_internal_dict(std::string_view path) const -> void;
+    auto dump_internal_dict(const char* path) const -> void;
     auto compile_and_reload_user_dictionary() -> void;
     auto reload_dictionary(const char* user_dict = nullptr) -> void;
     auto recalc_cost(const Phrases& source) const -> long;

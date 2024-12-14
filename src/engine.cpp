@@ -61,7 +61,7 @@ auto build_raw_and_constraints(const Phrases& source, const bool ignore_protecti
     return std::make_pair(buffer, feature_constriants);
 }
 
-auto load_text_dictionary(const std::string_view path) -> std::vector<History> {
+auto load_text_dictionary(const char* const path) -> std::vector<History> {
     auto res = std::vector<History>();
     if(!std::filesystem::is_regular_file(path)) {
         return res;
@@ -205,7 +205,7 @@ auto Engine::save_hisotry() const -> void {
     }
 }
 
-auto Engine::dump_internal_dict(const std::string_view path) const -> void {
+auto Engine::dump_internal_dict(const char* const path) const -> void {
     auto to_compile = std::vector<History>();
     for(const auto& d : user_dictionary_paths) {
         auto hists = load_text_dictionary(d.data());
@@ -226,7 +226,7 @@ auto Engine::compile_and_reload_user_dictionary() -> void {
     auto       tmp = TemporaryDirectory();
     const auto csv = tmp.str() + "/dict.csv";
     const auto bin = tmp.str() + "/dict.bin";
-    dump_internal_dict(csv);
+    dump_internal_dict(csv.data());
 
     auto command = std::string();
     command += dictionary_compiler_path;
