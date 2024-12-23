@@ -35,3 +35,14 @@ ninja -C build install
 
 # Configurations
 Copy `docs/mikan.conf` to `$HOME/.config/mikan.conf` and modify it.  
+
+# Keybinds
+mikan uses vim-inspired keybinds.
+- Ctrl+H/L: Select previous/next phrase
+- Ctrl+J/K: Select previous/next phrase conversion candidate
+- Alt+H/L: Split first/last one character from current phrase
+- Alt+J/K: Merge previous/next and current phrases
+- Ctrl+Alt+H/L: Move separater between current and next phrases to left/right
+- Space: Start conversion of the whole sentence and select the next sentence candidate
+- Shift+Space: Select previous sentence candidate
+- Return: Commit sentence
