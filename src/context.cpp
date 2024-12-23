@@ -574,33 +574,33 @@ auto Context::handle_key_event(fcitx::KeyEvent& event) -> void {
         cursor += current_phrase->get_raw().get_feature().size() - cursor_in_phrase;
 
         // move cursor and separator
-        auto       moved_chara_size = size_t();
-        const auto left             = share.key_config.match(Actions::MoveSeparatorLeft, event);
+        const auto left = share.key_config.match(Actions::MoveSeparatorLeft, event);
         if(left) {
-            auto current_u32 = u8tou32(current_phrase->get_raw().get_feature());
-            moved_chara_size = fcitx_ucs4_char_len(current_u32.back());
-            move_phrase->get_mutable_feature().insert(0, u32tou8(current_u32.back()));
+            auto       current_u32 = u8tou32(current_phrase->get_raw().get_feature());
+            const auto moved_char  = u32tou8(current_u32.back());
+            move_phrase->get_mutable_feature().insert(0, moved_char);
             current_u32.pop_back();
             if(current_u32.empty()) {
                 phrases->erase(phrases->begin() + (current_phrase - phrases->data()));
             } else {
                 current_phrase->get_mutable_feature() = u32tou8(current_u32);
             }
+            cursor -= moved_char.size();
+            if(cursor == 0) {
+                // left most phrase merged
+                cursor = move_phrase->get_mutable_feature().size();
+            }
         } else {
-            auto move_u32    = u8tou32(move_phrase->get_raw().get_feature());
-            moved_chara_size = fcitx_ucs4_char_len(move_u32[0]);
-            current_phrase->get_mutable_feature() += u32tou8(move_u32[0]);
+            auto       move_u32   = u8tou32(move_phrase->get_raw().get_feature());
+            const auto moved_char = u32tou8(move_u32[0]);
+            current_phrase->get_mutable_feature() += moved_char;
             move_u32.erase(0, 1);
             if(move_u32.empty()) {
                 phrases->erase(phrases->begin() + (move_phrase - phrases->data()));
             } else {
                 move_phrase->get_mutable_feature() = u32tou8(move_u32);
             }
-        }
-        if(left) {
-            cursor -= moved_chara_size;
-        } else {
-            cursor += moved_chara_size;
+            cursor += moved_char.size();
         }
 
         current_phrase->set_protection_level(ProtectionLevel::PreserveSeparation);
