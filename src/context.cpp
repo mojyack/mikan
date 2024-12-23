@@ -101,7 +101,7 @@ auto Context::calc_phrase_in_cursor(Phrase** phrase, size_t* cursor_in_phrase) c
         return;
     }
     auto total_bytes = size_t(0);
-    for(const auto& p : *phrases) {
+    for(auto& p : *phrases) {
         const auto phrase_end = total_bytes + p.get_raw().get_feature().size();
         if(cursor > total_bytes && cursor <= phrase_end) {
             *phrase = const_cast<Phrase*>(&p);
