@@ -660,10 +660,11 @@ auto Context::handle_key_event(fcitx::KeyEvent& event) -> void {
 
     // handle romaji
     do {
-        if(event.isRelease()) {
+        const auto key = event.key();
+        if(event.isRelease() || (key.states() != fcitx::KeyState::NoState && key.states() != fcitx::KeyState::Shift)) {
             break;
         }
-        const auto romaji_8 = fcitx::Key::keySymToUTF8(event.key().sym());
+        const auto romaji_8 = fcitx::Key::keySymToUTF8(key.sym());
         if(fcitx_utf8_strlen(romaji_8.data()) != 1) {
             break;
         }
