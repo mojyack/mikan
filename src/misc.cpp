@@ -82,13 +82,13 @@ auto u32tou8(const char32_t u32) -> std::string {
     return buffer.data();
 }
 
-auto kana_to_romaji(const std::string_view kana) -> std::string {
+auto kana_to_romaji(const std::string_view kana) -> std::optional<std::string> {
     for(auto i = uint64_t(0); i < sizeof(romaji_table) / sizeof(RomajiKana); i += 1) {
         if(romaji_table[i].kana == kana) {
             return romaji_table[i].romaji;
         }
     }
-    panic("unknown kana passed");
+    return {};
 }
 
 auto pop_back_u8(std::string& u8) -> void {

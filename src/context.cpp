@@ -372,16 +372,10 @@ auto Context::handle_key_event(fcitx::KeyEvent& event) -> void {
         // disassembly the kana to romaji and pop back.
         auto kana8 = std::array<char, FCITX_UTF8_MAX_LENGTH>();
         fcitx_ucs4_to_utf8(*kana, kana8.data());
-        auto success = true;
-        try {
-            to_kana = kana_to_romaji(kana8.data());
-        } catch(const std::runtime_error&) {
-            success = false;
-        }
-        if(success) {
+        if(auto romaji = kana_to_romaji(kana8.data())) {
+            to_kana = std::move(*romaji);
             pop_back_u8(to_kana);
         }
-
         // move cursor.
         cursor -= fcitx_ucs4_char_len(*kana);
 

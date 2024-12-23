@@ -9,7 +9,7 @@ auto get_dictionary_compiler_path() -> std::optional<std::string>;
 auto u8tou32(std::string_view u8) -> std::u32string;
 auto u32tou8(std::u32string_view u32) -> std::string;
 auto u32tou8(char32_t u32) -> std::string;
-auto kana_to_romaji(std::string_view kana) -> std::string;
+auto kana_to_romaji(std::string_view kana) -> std::optional<std::string>;
 auto pop_back_u8(std::string& u8) -> void;
 
 template <typename T, typename E>
