@@ -31,7 +31,7 @@ class Engine {
     Critical<Sentences>      fix_requests;
     std::string              tmpdir;
     bool                     finish_dictionary_updater = false;
-    bool                     enable_history            = true;
+    bool                     enable_history            = false;
 
     auto load_configuration() -> bool;
     auto add_history(const History& word) -> bool;
