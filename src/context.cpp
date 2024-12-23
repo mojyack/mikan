@@ -581,13 +581,21 @@ auto Context::handle_key_event(fcitx::KeyEvent& event) -> void {
             moved_chara_size = fcitx_ucs4_char_len(current_u32.back());
             move_phrase->get_mutable_feature().insert(0, u32tou8(current_u32.back()));
             current_u32.pop_back();
-            current_phrase->get_mutable_feature() = u32tou8(current_u32);
+            if(current_u32.empty()) {
+                phrases->erase(phrases->begin() + (current_phrase - phrases->data()));
+            } else {
+                current_phrase->get_mutable_feature() = u32tou8(current_u32);
+            }
         } else {
             auto move_u32    = u8tou32(move_phrase->get_raw().get_feature());
             moved_chara_size = fcitx_ucs4_char_len(move_u32[0]);
             current_phrase->get_mutable_feature() += u32tou8(move_u32[0]);
             move_u32.erase(0, 1);
-            move_phrase->get_mutable_feature() = u32tou8(move_u32);
+            if(move_u32.empty()) {
+                phrases->erase(phrases->begin() + (move_phrase - phrases->data()));
+            } else {
+                move_phrase->get_mutable_feature() = u32tou8(move_u32);
+            }
         }
         if(left) {
             cursor -= moved_chara_size;
