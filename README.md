@@ -32,3 +32,6 @@ cd mikan
 meson setup -Dprefix=/usr -Dlibdir=lib/fcitx5 -Dbuildtype=release build
 ninja -C build install
 ```
+
+# Configurations
+Copy `docs/mikan.conf` to `$HOME/.config/mikan.conf` and modify it.  
