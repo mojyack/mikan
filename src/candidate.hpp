@@ -1,4 +1,6 @@
 #pragma once
+#include <algorithm>
+
 #include <fcitx/candidatelist.h>
 
 #include "mecab-model.hpp"
@@ -109,7 +111,8 @@ class PhraseCandidates : public Candidates {
             return elm.get_feature() == o.get_feature();
         };
 
-        const auto& raw = source.get_raw().get_feature();
+        const auto& raw     = source.get_raw().get_feature();
+        const auto& current = source.get_current().get_feature();
         for(auto d : dictionaries) {
             auto& lattice = *d->lattice;
             lattice.set_request_type(MECAB_NBEST);
@@ -130,27 +133,24 @@ class PhraseCandidates : public Candidates {
             lattice.clear();
         }
 
+        static const auto find_feature = [](std::string_view feature) {
+            return [feature](const MeCabWord& word) {
+                return word.get_feature() == feature;
+            };
+        };
+
         // first candidate is current feature
-        auto& current = source.get_current().get_feature();
-        if(auto p = std::find_if(data.begin(), data.end(), [&current](const MeCabWord& o) {
-               return o.get_feature() == current;
-           });
-           p == data.end()) {
+        if(const auto p = std::ranges::find_if(data, find_feature(current)); p == data.end()) {
             data.insert(data.begin(), MeCabWord(current));
         } else if(p != data.begin()) {
             std::swap(*p, data[0]);
         }
 
-        // second candidate is hiragana
-        if(current != raw) {
-            if(auto p = std::find_if(data.begin(), data.end(), [&raw](const MeCabWord& o) {
-                   return o.get_feature() == raw;
-               });
-               p == data.end()) {
-                data.insert(data.begin() + 1, MeCabWord(raw));
-            } else if(p != data.begin() + 1) {
-                std::swap(*p, data[1]);
-            }
+        // second candidate is hiragana(raw)
+        if(const auto p = std::ranges::find_if(data, find_feature(raw)); p == data.end()) {
+            data.insert(data.begin() + 1, MeCabWord(raw));
+        } else if(p != data.begin() + 1) {
+            std::swap(*p, data[1]);
         }
         index                            = 0;
         is_initialized_with_dictionaries = true;
