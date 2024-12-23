@@ -94,20 +94,19 @@ class CandidateList : public CandidateListBase,
     }
 
     auto prev() -> void override {
-        auto add = page_size;
-        if(add > static_cast<size_t>(cursorIndex())) {
-            add = cursorIndex();
+        if(hasPrev()) {
+            candidates->set_index((currentPage() - 1) * page_size);
+        } else {
+            candidates->set_index((totalPages() - 1) * page_size);
         }
-        candidates->move_index(-add);
     }
 
     auto next() -> void override {
-        auto       add  = page_size;
-        const auto size = candidates->get_data_size();
-        if(cursorIndex() + add >= static_cast<size_t>(size)) {
-            add = size - 1 - cursorIndex();
+        if(hasNext()) {
+            candidates->set_index((currentPage() + 1) * page_size);
+        } else {
+            candidates->set_index(0);
         }
-        candidates->move_index(page_size);
     }
 
     auto usedNextBefore() const -> bool override {
