@@ -31,13 +31,6 @@ class WordChainCandidates : public Candidates {
         index = 0;
     }
 
-    auto get_current_ptr() -> WordChain* {
-        if(data.empty()) {
-            return nullptr;
-        }
-        return &data[index];
-    }
-
     auto clear() -> void {
         data.clear();
     }

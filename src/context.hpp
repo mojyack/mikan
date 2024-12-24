@@ -15,7 +15,6 @@ class Context final : public fcitx::InputContextProperty {
     fcitx::InputContext& context;
     engine::Engine&      engine;
     Share&               share;
-    WordChain*           chain = nullptr;
     size_t               cursor;       // in bytes
     RomajiIndex          romaji_index; // used in handle_romaji().
     std::string          to_kana;
@@ -23,6 +22,9 @@ class Context final : public fcitx::InputContextProperty {
     bool                 translation_changed = false;
     bool                 chain_changed       = false;
 
+    auto is_empty() const -> bool;
+    auto get_current_chain() -> WordChain&;
+    auto get_current_chain() const -> const WordChain&;
     auto commit_word(const Word* word) -> void;
     auto commit_wordchain() -> void;
     auto make_branch_chain() -> void;
