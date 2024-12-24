@@ -72,7 +72,7 @@ class Phrase {
         candidates = std::move(new_candidates);
     }
 
-    Phrase() : candidates(MeCabWord()){};
+    Phrase() : candidates(MeCabWord()) {};
 
     Phrase(const std::string& raw) : candidates(MeCabWord(raw)) {}
 
@@ -100,8 +100,7 @@ class SentenceCandidates : public Candidates {
     auto get_labels() const -> std::vector<std::string> {
         auto labels = std::vector<std::string>();
         for(auto& s : data) {
-            labels.emplace_back();
-            auto& label = labels.back();
+            auto& label = labels.emplace_back();
             for(auto& p : s) {
                 label += p.get_translated().get_feature();
             }
