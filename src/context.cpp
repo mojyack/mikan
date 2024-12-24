@@ -627,7 +627,6 @@ auto Context::handle_key_event(fcitx::KeyEvent& event) -> void {
 
         auto        katakana32 = std::u32string();
         const auto& raw        = current_phrase->get_raw().get_feature();
-        auto        u32        = u8tou32(raw);
         for(const auto c : u8tou32(raw)) {
             if(const auto p = hiragana_katakana_table.find(c); p != hiragana_katakana_table.end()) {
                 katakana32 += p->second;
