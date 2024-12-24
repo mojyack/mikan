@@ -1,10 +1,10 @@
 #pragma once
 #include <thread>
 
-#include "phrase.hpp"
 #include "share.hpp"
 #include "util/critical.hpp"
 #include "util/event.hpp"
+#include "word.hpp"
 
 namespace mikan::engine {
 struct History {
@@ -13,9 +13,9 @@ struct History {
 };
 
 struct FeatureConstriant {
-    size_t        begin;
-    size_t        end;
-    const Phrase* phrase;
+    size_t      begin;
+    size_t      end;
+    const Word* word;
 };
 
 class Engine {
@@ -28,7 +28,7 @@ class Engine {
     std::thread              dictionary_updater;
     Event                    dictionary_update_event;
     std::vector<History>     histories;
-    Critical<Sentences>      fix_requests;
+    Critical<WordChains>     fix_requests;
     std::string              tmpdir;
     bool                     finish_dictionary_updater = false;
     bool                     enable_history            = false;
@@ -39,13 +39,13 @@ class Engine {
     auto dump_internal_dict(const char* path) const -> void;
     auto compile_and_reload_user_dictionary() -> void;
     auto reload_dictionary(const char* user_dict = nullptr) -> void;
-    auto recalc_cost(const Phrases& source) const -> long;
-    auto compare_and_fix_dictionary(const Phrases& wants) -> void;
+    auto recalc_cost(const WordChain& source) const -> long;
+    auto compare_and_fix_dictionary(const WordChain& wants) -> void;
     auto dictionary_updater_main() -> void;
 
   public:
-    auto translate_phrases(const Phrases& source, bool best_only, bool ignore_protection = false) const -> Sentences;
-    auto request_fix_dictionary(Phrases wants) -> void;
+    auto translate_wordchain(const WordChain& source, bool best_only, bool ignore_protection = false) const -> WordChains;
+    auto request_fix_dictionary(WordChain wants) -> void;
 
     Engine(Share& share);
     ~Engine();

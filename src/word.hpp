@@ -10,10 +10,10 @@ enum class ProtectionLevel {
     PreserveTranslation,
 };
 
-class Phrase {
+class Word {
   private:
-    PhraseCandidates candidates;
-    ProtectionLevel  protection = ProtectionLevel::None;
+    WordCandidates  candidates;
+    ProtectionLevel protection = ProtectionLevel::None;
 
     static auto get_node_surface(const MeCab::Node* const node) -> std::string {
         return std::string(node->surface, node->length);
@@ -64,29 +64,29 @@ class Phrase {
         return candidates.has_candidates();
     }
 
-    auto get_candidates() -> PhraseCandidates& {
+    auto get_candidates() -> WordCandidates& {
         return candidates;
     }
 
-    auto reset_candidates(PhraseCandidates&& new_candidates) -> void {
+    auto reset_candidates(WordCandidates&& new_candidates) -> void {
         candidates = std::move(new_candidates);
     }
 
-    Phrase() : candidates(MeCabWord()) {};
+    Word() : candidates(MeCabWord()) {};
 
-    Phrase(const std::string& raw) : candidates(MeCabWord(raw)) {}
+    Word(const std::string& raw) : candidates(MeCabWord(raw)) {}
 
-    Phrase(const MeCab::Node* const node) : candidates(MeCabWord(get_node_surface(node)), node_to_word(node)) {}
+    Word(const MeCab::Node* const node) : candidates(MeCabWord(get_node_surface(node)), node_to_word(node)) {}
 
-    Phrase(MeCabWord&& raw, MeCabWord&& translated) : candidates(MeCabWord(raw), MeCabWord(translated)) {}
+    Word(MeCabWord&& raw, MeCabWord&& translated) : candidates(MeCabWord(raw), MeCabWord(translated)) {}
 };
 
-using Phrases   = std::vector<Phrase>;
-using Sentences = std::vector<Phrases>;
+using WordChain  = std::vector<Word>;
+using WordChains = std::vector<WordChain>;
 
-class SentenceCandidates : public Candidates {
+class WordChainCandidates : public Candidates {
   private:
-    Sentences data;
+    WordChains data;
 
   public:
     auto empty() const -> bool {
@@ -108,12 +108,12 @@ class SentenceCandidates : public Candidates {
         return labels;
     }
 
-    auto reset(Sentences&& n) -> void {
+    auto reset(WordChains&& n) -> void { // FIXME: as value
         data  = std::move(n);
         index = 0;
     }
 
-    auto get_current_ptr() -> Phrases* {
+    auto get_current_ptr() -> WordChain* {
         if(data.empty()) {
             return nullptr;
         }
@@ -124,10 +124,10 @@ class SentenceCandidates : public Candidates {
         data.clear();
     }
 
-    auto operator[](const size_t index) -> Phrases& {
+    auto operator[](const size_t index) -> WordChain& {
         return data[index];
     }
 
-    SentenceCandidates() = default;
+    WordChainCandidates() = default;
 };
 } // namespace mikan

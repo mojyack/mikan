@@ -5,7 +5,6 @@
 #include "engine.hpp"
 #include "macros/unwrap.hpp"
 #include "misc.hpp"
-#include "phrase.hpp"
 #include "tmp.hpp"
 #include "util/charconv.hpp"
 #include "util/split.hpp"
@@ -46,7 +45,7 @@ auto parse_line_to_key_value(const std::string_view line) -> std::pair<std::stri
     return {vec[0], vec[1]};
 }
 
-auto build_raw_and_constraints(const Phrases& source, const bool ignore_protection) -> std::pair<std::string, std::vector<FeatureConstriant>> {
+auto build_raw_and_constraints(const WordChain& source, const bool ignore_protection) -> std::pair<std::string, std::vector<FeatureConstriant>> {
     auto feature_constriants = std::vector<FeatureConstriant>();
     auto buffer              = std::string();
     for(auto p = source.begin(); p != source.end(); p += 1) {
@@ -80,14 +79,14 @@ auto load_text_dictionary(const char* const path) -> std::vector<History> {
 
 auto set_constraints(MeCab::Lattice& lattice, const std::vector<FeatureConstriant>& constraints) -> void {
     for(const auto& f : constraints) {
-        const auto& phrase  = *f.phrase;
-        const auto  feature = phrase.get_protection_level() == ProtectionLevel::PreserveTranslation ? phrase.get_translated().get_feature().data() : "*";
+        const auto& word    = *f.word;
+        const auto  feature = word.get_protection_level() == ProtectionLevel::PreserveTranslation ? word.get_translated().get_feature().data() : "*";
         lattice.set_feature_constraint(f.begin, f.end, feature);
     }
 }
 
-auto parse_nodes(MeCab::Lattice& lattice, const bool needs_parsed_feature) -> std::pair<std::string, Phrases> {
-    auto parsed         = Phrases();
+auto parse_nodes(MeCab::Lattice& lattice, const bool needs_parsed_feature) -> std::pair<std::string, WordChain> {
+    auto parsed         = WordChain();
     auto parsed_feature = std::string();
     for(const auto* node = lattice.bos_node(); node; node = node->next) {
         if(node->stat == MECAB_BOS_NODE || node->stat == MECAB_EOS_NODE) {
@@ -246,7 +245,7 @@ auto Engine::reload_dictionary(const char* const user_dict) -> void {
     share.primary_vocabulary = std::make_shared<MeCabModel>(system_dictionary_path.data(), user_dict, true);
 }
 
-auto Engine::recalc_cost(const Phrases& source) const -> long {
+auto Engine::recalc_cost(const WordChain& source) const -> long {
     // source.back().get_translated().get_total_cost() sould be total cost.
     // but it seems that mecab sets incorrect cost values when parsing delimiter positions and words at the same time.
     // so we have to specify constraints to all words before parsing to get the correct cost.
@@ -267,7 +266,7 @@ auto Engine::recalc_cost(const Phrases& source) const -> long {
     return parse_nodes(lattice, true).second.back().get_translated().get_total_cost();
 }
 
-auto Engine::compare_and_fix_dictionary(const Phrases& wants) -> void {
+auto Engine::compare_and_fix_dictionary(const WordChain& wants) -> void {
     {
         // before comparing, add words which is unknown and not from system dictionary.
         auto added = false;
@@ -286,21 +285,21 @@ auto Engine::compare_and_fix_dictionary(const Phrases& wants) -> void {
 
     const auto source_cost = recalc_cost(wants);
     while(1) {
-        auto to_decrements      = std::vector<History>();
-        auto best               = translate_phrases(wants, true, true)[0];
-        auto all_phrases_passed = true;
+        auto to_decrements = std::vector<History>();
+        auto best          = translate_wordchain(wants, true, true)[0];
+        auto done          = true;
         for(auto& p : best) {
             p.set_protection_level(ProtectionLevel::None);
         }
         const auto total_diff = source_cost - recalc_cost(best);
         for(auto i = size_t(0); i < wants.size(); i += 1) {
-            auto&         pb = best[i];
-            const Phrase& pw = wants[i];
+            auto&       pb = best[i];
+            const Word& pw = wants[i];
             if(pb.get_raw().get_feature() == pw.get_raw().get_feature() && pb.get_translated().get_feature() == pw.get_translated().get_feature()) {
                 continue;
             }
-            all_phrases_passed = false;
-            auto left          = std::string();
+            done      = false;
+            auto left = std::string();
             for(auto p = size_t(i); p < best.size(); p += 1) {
                 left += best[p].get_raw().get_feature();
             }
@@ -316,9 +315,9 @@ auto Engine::compare_and_fix_dictionary(const Phrases& wants) -> void {
             } else {
                 best.resize(i + 1);
             }
-            best = translate_phrases(best, true, false)[0];
+            best = translate_wordchain(best, true, false)[0];
         }
-        if(all_phrases_passed) {
+        if(done) {
             return;
         }
         const auto cost_decrement = total_diff / to_decrements.size() + 1;
@@ -340,7 +339,7 @@ loop:
     if(finish_dictionary_updater) {
         return;
     }
-    auto request = std::optional<Phrases>();
+    auto request = std::optional<WordChain>();
     {
         auto [lock, requests] = fix_requests.access();
         if(!requests.empty()) {
@@ -356,10 +355,10 @@ loop:
     goto loop;
 }
 
-auto Engine::translate_phrases(const Phrases& source, const bool best_only, const bool ignore_protection) const -> Sentences {
+auto Engine::translate_wordchain(const WordChain& source, const bool best_only, const bool ignore_protection) const -> WordChains {
     constexpr auto N_BEST_LIMIT = size_t(30);
 
-    auto       result      = Sentences();
+    auto       result      = WordChains();
     auto       source_data = build_raw_and_constraints(source, ignore_protection);
     const auto buffer      = std::move(source_data.first);
     const auto constraints = std::move(source_data.second);
@@ -374,7 +373,7 @@ auto Engine::translate_phrases(const Phrases& source, const bool best_only, cons
         while(1) {
             const auto parsed_nodes   = parse_nodes(lattice, true);
             const auto parsed_feature = std::string(std::move(parsed_nodes.first));
-            const auto parsed         = Phrases(std::move(parsed_nodes.second));
+            const auto parsed         = WordChain(std::move(parsed_nodes.second));
             auto       matched        = false;
             for(const auto& r : result_features) {
                 if(r == parsed_feature) {
@@ -396,23 +395,23 @@ auto Engine::translate_phrases(const Phrases& source, const bool best_only, cons
         return result;
     }
 
-    // retrive protected phrases.
+    // retrive protected wordchain.
     for(auto& r : result) {
-        auto total_bytes          = size_t(0);
-        auto protected_phrase_pos = constraints.cbegin();
+        auto total_bytes             = size_t(0);
+        auto protected_wordchain_pos = constraints.cbegin();
         for(auto& p : r) {
-            if(protected_phrase_pos == constraints.cend()) {
+            if(protected_wordchain_pos == constraints.cend()) {
                 break;
             }
-            if(total_bytes == protected_phrase_pos->begin) {
-                // this is a phrase from a protected one.
-                p.set_protection_level(protected_phrase_pos->phrase->get_protection_level());
+            if(total_bytes == protected_wordchain_pos->begin) {
+                // this is a word from a protected one.
+                p.set_protection_level(protected_wordchain_pos->word->get_protection_level());
                 if(p.get_protection_level() == ProtectionLevel::PreserveTranslation) {
-                    p = *protected_phrase_pos->phrase;
+                    p = *protected_wordchain_pos->word;
                 }
-                protected_phrase_pos += 1;
-            } else if(total_bytes > protected_phrase_pos->begin) {
-                PANIC("protected phrase lost");
+                protected_wordchain_pos += 1;
+            } else if(total_bytes > protected_wordchain_pos->begin) {
+                PANIC("protected word lost");
             }
             total_bytes += p.get_raw().get_feature().size();
         }
@@ -421,7 +420,7 @@ auto Engine::translate_phrases(const Phrases& source, const bool best_only, cons
     return result;
 }
 
-auto Engine::request_fix_dictionary(Phrases wants) -> void {
+auto Engine::request_fix_dictionary(WordChain wants) -> void {
     if(!enable_history) {
         return;
     }
@@ -479,12 +478,12 @@ Engine::Engine(Share& share)
     share.key_config[Actions::CandidatePageNext]  = {{FcitxKey_Left}};
     share.key_config[Actions::CandidatePagePrev]  = {{FcitxKey_Right}};
     share.key_config[Actions::Commit]             = {{FcitxKey_Return}};
-    share.key_config[Actions::PhraseNext]         = {{FcitxKey_Left}, {FcitxKey_H, fcitx::KeyState::Ctrl}};
-    share.key_config[Actions::PhrasePrev]         = {{FcitxKey_Right}, {FcitxKey_L, fcitx::KeyState::Ctrl}};
-    share.key_config[Actions::SplitPhraseLeft]    = {{FcitxKey_Left, fcitx::KeyState::Ctrl}, {FcitxKey_H, fcitx::KeyState::Alt}};
-    share.key_config[Actions::SplitPhraseRight]   = {{FcitxKey_Right, fcitx::KeyState::Ctrl}, {FcitxKey_L, fcitx::KeyState::Alt}};
-    share.key_config[Actions::MergePhraseLeft]    = {{FcitxKey_Left, fcitx::KeyState::Ctrl_Alt}, {FcitxKey_J, fcitx::KeyState::Alt}};
-    share.key_config[Actions::MergePhraseRight]   = {{FcitxKey_Right, fcitx::KeyState::Ctrl_Alt}, {FcitxKey_K, fcitx::KeyState::Alt}};
+    share.key_config[Actions::WordNext]           = {{FcitxKey_Left}, {FcitxKey_H, fcitx::KeyState::Ctrl}};
+    share.key_config[Actions::WordPrev]           = {{FcitxKey_Right}, {FcitxKey_L, fcitx::KeyState::Ctrl}};
+    share.key_config[Actions::SplitWordLeft]      = {{FcitxKey_Left, fcitx::KeyState::Ctrl}, {FcitxKey_H, fcitx::KeyState::Alt}};
+    share.key_config[Actions::SplitWordRight]     = {{FcitxKey_Right, fcitx::KeyState::Ctrl}, {FcitxKey_L, fcitx::KeyState::Alt}};
+    share.key_config[Actions::MergeWordsLeft]     = {{FcitxKey_Left, fcitx::KeyState::Ctrl_Alt}, {FcitxKey_J, fcitx::KeyState::Alt}};
+    share.key_config[Actions::MergeWordsRight]    = {{FcitxKey_Right, fcitx::KeyState::Ctrl_Alt}, {FcitxKey_K, fcitx::KeyState::Alt}};
     share.key_config[Actions::MoveSeparatorLeft]  = {{FcitxKey_Left, fcitx::KeyState::Alt}, {FcitxKey_H, fcitx::KeyState::Ctrl_Alt}};
     share.key_config[Actions::MoveSeparatorRight] = {{FcitxKey_Right, fcitx::KeyState::Alt}, {FcitxKey_L, fcitx::KeyState::Ctrl_Alt}};
     share.key_config[Actions::ConvertKatakana]    = {{FcitxKey_q}};

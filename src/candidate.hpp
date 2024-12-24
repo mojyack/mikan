@@ -10,7 +10,7 @@
 namespace mikan {
 class Candidates {
   protected:
-    uint64_t index;
+    uint64_t index; // TODO: size_t
 
   public:
     auto move_index(const int val) -> void {
@@ -32,7 +32,7 @@ class Candidates {
     virtual ~Candidates() = default;
 };
 
-class PhraseCandidates : public Candidates {
+class WordCandidates : public Candidates {
   private:
     MeCabWords data;
     bool       is_initialized_with_dictionaries = false;
@@ -94,19 +94,19 @@ class PhraseCandidates : public Candidates {
         return data[index];
     }
 
-    PhraseCandidates() = default;
+    WordCandidates() = default;
 
-    PhraseCandidates(MeCabWord raw) {
+    WordCandidates(MeCabWord raw) {
         data  = MeCabWords{std::move(raw)};
         index = 0;
     }
 
-    PhraseCandidates(MeCabWord raw, MeCabWord translated) {
+    WordCandidates(MeCabWord raw, MeCabWord translated) {
         data  = MeCabWords{std::move(translated), std::move(raw)};
         index = 0;
     }
 
-    PhraseCandidates(const std::vector<MeCabModel*>& dictionaries, const PhraseCandidates& source) {
+    WordCandidates(const std::vector<MeCabModel*>& dictionaries, const WordCandidates& source) {
         const auto predicate_same_feature = [](const MeCabWord& elm, const MeCabWord& o) -> bool {
             return elm.get_feature() == o.get_feature();
         };

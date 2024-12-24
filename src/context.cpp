@@ -24,17 +24,17 @@ auto is_candidate_list_for(fcitx::InputContext& context, const Candidates* const
 }
 } // namespace
 
-auto Context::commit_phrase(const Phrase* const phrase) -> void {
-    const auto& translated = phrase->get_translated();
+auto Context::commit_word(const Word* const word) -> void {
+    const auto& translated = word->get_translated();
     context.commitString(translated.get_feature());
 }
 
-auto Context::commit_all_phrases() -> void {
-    merge_branch_sentences();
-    auto current = (Phrase*)(nullptr);
-    calc_phrase_in_cursor(&current);
-    for(const auto& p : *phrases) {
-        commit_phrase(&p);
+auto Context::commit_wordchain() -> void {
+    merge_branch_chains();
+    auto current = (Word*)(nullptr);
+    calc_word_in_cursor(&current);
+    for(const auto& p : *chain) {
+        commit_word(&p);
         if(current == &p && !to_kana.empty()) {
             context.commitString(to_kana);
             to_kana.clear();
@@ -42,24 +42,24 @@ auto Context::commit_all_phrases() -> void {
     }
 }
 
-auto Context::make_branch_sentence() -> void {
+auto Context::make_branch_chain() -> void {
     if(!translation_changed) {
-        shrink_sentences(true);
+        shrink_chains(true);
         translation_changed = true;
     }
 }
 
-auto Context::merge_branch_sentences() -> bool {
-    if(phrases == nullptr) {
+auto Context::merge_branch_chains() -> bool {
+    if(chain == nullptr) {
         return false;
     }
-    if(sentences.get_index() != 0) {
-        // if sentences.index != 0, it means user fixed translation manually.
-        // so we have to check the differences between sentences[0] and *phrases.
-        engine.request_fix_dictionary(*phrases);
+    if(chains.get_index() != 0) {
+        // if chains.index != 0, it means user fixed translation manually.
+        // so we have to check the differences between chains[0] and *chain.
+        engine.request_fix_dictionary(*chain);
     }
     if(translation_changed) {
-        shrink_sentences();
+        shrink_chains();
         translation_changed = false;
         return true;
     } else {
@@ -67,21 +67,21 @@ auto Context::merge_branch_sentences() -> bool {
     }
 }
 
-auto Context::shrink_sentences(const bool reserve_one) -> void {
-    if(phrases == nullptr) {
+auto Context::shrink_chains(const bool reserve_one) -> void {
+    if(chain == nullptr) {
         return;
     }
     if(reserve_one) {
-        sentences.reset({*phrases, *phrases});
-        sentences.set_index(1);
+        chains.reset({*chain, *chain});
+        chains.set_index(1);
     } else {
-        sentences.reset({*phrases});
+        chains.reset({*chain});
     }
-    phrases = sentences.get_current_ptr();
+    chain = chains.get_current_ptr();
 }
 
 auto Context::delete_surrounding_text() -> bool {
-    if(phrases != nullptr || !to_kana.empty() || !context.capabilityFlags().test(fcitx::CapabilityFlag::SurroundingText)) {
+    if(chain != nullptr || !to_kana.empty() || !context.capabilityFlags().test(fcitx::CapabilityFlag::SurroundingText)) {
         return false;
     }
     const auto& text = context.surroundingText();
@@ -92,112 +92,112 @@ auto Context::delete_surrounding_text() -> bool {
     return true;
 }
 
-auto Context::calc_phrase_in_cursor(Phrase** phrase, size_t* cursor_in_phrase) const -> void {
-    if(phrases == nullptr) {
-        *phrase = nullptr;
-        if(cursor_in_phrase != nullptr) {
-            *cursor_in_phrase = 0;
+auto Context::calc_word_in_cursor(Word** word, size_t* cursor_in_word) const -> void {
+    if(chain == nullptr) {
+        *word = nullptr;
+        if(cursor_in_word != nullptr) {
+            *cursor_in_word = 0;
         }
         return;
     }
     auto total_bytes = size_t(0);
-    for(auto& p : *phrases) {
-        const auto phrase_end = total_bytes + p.get_raw().get_feature().size();
-        if(cursor > total_bytes && cursor <= phrase_end) {
-            *phrase = const_cast<Phrase*>(&p);
-            if(cursor_in_phrase != nullptr) {
-                *cursor_in_phrase = cursor - total_bytes;
+    for(auto& p : *chain) {
+        const auto word_end = total_bytes + p.get_raw().get_feature().size();
+        if(cursor > total_bytes && cursor <= word_end) {
+            *word = const_cast<Word*>(&p);
+            if(cursor_in_word != nullptr) {
+                *cursor_in_word = cursor - total_bytes;
             }
             return;
         }
-        total_bytes = phrase_end;
+        total_bytes = word_end;
     }
-    PANIC("cursor is not in any phrase.");
+    PANIC("cursor is not in any word");
 }
 
 auto Context::move_cursor_back() -> void {
-    if(phrases == nullptr) {
+    if(chain == nullptr) {
         return;
     }
     // move cursor to back.
     cursor = 0;
-    for(const auto& p : *phrases) {
+    for(const auto& p : *chain) {
         cursor += p.get_raw().get_feature().size();
     }
 }
 
 auto Context::append_kana(const std::string& kana) -> void {
-    // append kana to selected phrase.
-    if(phrases == nullptr) {
-        sentences.reset({Phrases{Phrase{kana}}});
-        phrases = sentences.get_current_ptr();
-        cursor  = kana.size();
+    // append kana to selected word
+    if(chain == nullptr) {
+        chains.reset({WordChain{Word{kana}}});
+        chain  = chains.get_current_ptr();
+        cursor = kana.size();
     } else {
-        auto current    = (Phrase*)(nullptr);
+        auto current    = (Word*)(nullptr);
         auto cursor_pos = size_t();
-        calc_phrase_in_cursor(&current, &cursor_pos);
+        calc_word_in_cursor(&current, &cursor_pos);
         if(current->get_protection_level() != ProtectionLevel::None) {
-            phrases->emplace_back();
-            current    = &phrases->back();
+            chain->emplace_back();
+            current    = &chain->back();
             cursor_pos = 0;
         }
         current->get_mutable_feature().insert(cursor_pos, kana);
         current->set_protection_level(ProtectionLevel::None);
         cursor += kana.size();
-        sentence_changed = true;
+        chain_changed = true;
     }
-    *phrases = translate_phrases(*phrases, true)[0];
+    *chain = translate_wordchain(*chain, true)[0];
     auto_commit();
 }
 
-auto Context::translate_phrases(const Phrases& source, const bool best_only) -> Sentences {
-    if(phrases == nullptr) {
-        return Sentences();
+auto Context::translate_wordchain(const WordChain& source, const bool best_only) -> WordChains {
+    if(chain == nullptr) {
+        return WordChains();
     }
-    return engine.translate_phrases(source, best_only);
+    return engine.translate_wordchain(source, best_only);
 }
 
 auto Context::build_preedit_text() const -> fcitx::Text {
     auto preedit = fcitx::Text();
-    if(phrases == nullptr) {
+    if(chain == nullptr) {
         preedit.append(to_kana, fcitx::TextFormatFlag::Underline);
         preedit.setCursor(to_kana.size());
         return preedit;
     }
 
-    auto current          = (Phrase*)(nullptr);
-    auto cursor_in_phrase = size_t();
-    auto preedit_cursor   = size_t(0);
-    calc_phrase_in_cursor(&current, &cursor_in_phrase);
-    for(auto i = size_t(0), limit = phrases->size(); i < limit; i += 1) {
-        const auto& phrase = (*phrases)[i];
+    auto current        = (Word*)(nullptr);
+    auto cursor_in_word = size_t();
+    auto preedit_cursor = size_t(0);
+    calc_word_in_cursor(&current, &cursor_in_word);
+    for(auto i = size_t(0), limit = chain->size(); i < limit; i += 1) {
+        const auto& word   = (*chain)[i];
         auto        text   = std::string();
         auto        format = fcitx::TextFormatFlag::NoFlag;
-        if(&phrase == current) {
+        if(&word == current) {
             if(!to_kana.empty()) {
                 format = fcitx::TextFormatFlag::Underline;
-                text   = phrase.get_raw().get_feature();
-                text.insert(cursor_in_phrase, to_kana);
-                preedit_cursor += cursor_in_phrase + to_kana.size();
+                text   = word.get_raw().get_feature();
+                text.insert(cursor_in_word, to_kana);
+                preedit_cursor += cursor_in_word + to_kana.size();
             } else {
                 format = fcitx::TextFormatFlag::Bold;
-                text   = phrase.get_translated().get_feature();
+                text   = word.get_translated().get_feature();
                 preedit_cursor += text.size();
             }
             preedit.setCursor(preedit_cursor);
         } else {
             format = fcitx::TextFormatFlag::Underline;
-            text   = phrase.get_translated().get_feature();
+            text   = word.get_translated().get_feature();
             preedit_cursor += text.size();
         }
-        const auto has_branches    = sentences.get_data_size() >= 2;
-        const auto is_current_last = current == &phrases->back();
+        const auto has_branches    = chains.get_data_size() >= 2;
+        const auto is_current_last = current == &chain->back();
         const auto insert_space    = share.insert_space == InsertSpaceOptions::On || (share.insert_space == InsertSpaceOptions::Smart && (!is_current_last || has_branches));
-        if(&phrase == current && insert_space) {
+        if(&word == current && insert_space) {
             text = "[" + text + "]";
         }
         preedit.append(text, format);
-        // add space between phrases.
+        // add space between words
         if(insert_space) {
             auto space = std::string("|");
             preedit.append("|");
@@ -208,17 +208,17 @@ auto Context::build_preedit_text() const -> fcitx::Text {
 }
 
 auto Context::build_kana_text() const -> std::string {
-    if(phrases == nullptr) {
+    if(chain == nullptr) {
         return to_kana;
     }
 
     auto text    = std::string();
-    auto current = (Phrase*)(nullptr);
-    calc_phrase_in_cursor(&current);
-    for(auto i = size_t(0), limit = phrases->size(); i < limit; i += 1) {
-        const auto& phrase = (*phrases)[i];
-        text += phrase.get_raw().get_feature();
-        if(&phrase == current) {
+    auto current = (Word*)(nullptr);
+    calc_word_in_cursor(&current);
+    for(auto i = size_t(0), limit = chain->size(); i < limit; i += 1) {
+        const auto& word = (*chain)[i];
+        text += word.get_raw().get_feature();
+        if(&word == current) {
             text += to_kana;
         }
         if(share.insert_space != InsertSpaceOptions::Off && i + 1 != limit) {
@@ -239,48 +239,48 @@ auto Context::apply_candidates() -> void {
 }
 
 auto Context::auto_commit() -> void {
-    if(phrases == nullptr || phrases->size() < share.auto_commit_threshold || phrases->size() < 2) {
+    if(chain == nullptr || chain->size() < share.auto_commit_threshold || chain->size() < 2) {
         return;
     }
-    const auto commit_num = phrases->size() - share.auto_commit_threshold + 1;
+    const auto commit_num = chain->size() - share.auto_commit_threshold + 1;
     auto       on_holds   = size_t(0);
     auto       commited   = false;
     for(auto i = size_t(0); i <= commit_num; i += 1) {
-        // we have to ensure that the following phrase's translations will remain the same without this phrase
-        if((*phrases)[on_holds].get_protection_level() != ProtectionLevel::PreserveTranslation) {
-            auto copy = translate_phrases(std::vector<Phrase>(phrases->begin() + on_holds + 1, phrases->end()), true)[0];
-            if(copy[0].get_translated().get_feature() != (*phrases)[on_holds + 1].get_translated().get_feature()) {
+        // we have to ensure that the following word's translations will remain the same without this word
+        if((*chain)[on_holds].get_protection_level() != ProtectionLevel::PreserveTranslation) {
+            auto copy = translate_wordchain(std::vector<Word>(chain->begin() + on_holds + 1, chain->end()), true)[0];
+            if(copy[0].get_translated().get_feature() != (*chain)[on_holds + 1].get_translated().get_feature()) {
                 // translation result will be changed
-                // but maybe we can commit this phrase with next one
+                // but maybe we can commit this word with next one
                 on_holds += 1;
                 continue;
             }
         }
 
-        // commit phrases
+        // commit words
         for(auto i = size_t(0); i <= on_holds; i += 1) {
-            commit_phrase(&(*phrases)[0]);
-            const auto commited_bytes = (*phrases)[0].get_raw().get_feature().size();
+            commit_word(&(*chain)[0]);
+            const auto commited_bytes = (*chain)[0].get_raw().get_feature().size();
             if(cursor >= commited_bytes) {
                 cursor -= commited_bytes;
             } else {
                 cursor = 0;
             }
-            phrases->erase(phrases->begin());
+            chain->erase(chain->begin());
         }
         on_holds = 0;
         commited = true;
     }
     if(commited) {
         apply_candidates();
-        sentence_changed = true;
+        chain_changed = true;
     }
 }
 
 auto Context::reset() -> void {
-    sentences.clear();
-    phrases          = nullptr;
-    sentence_changed = true;
+    chains.clear();
+    chain         = nullptr;
+    chain_changed = true;
 }
 
 auto Context::handle_key_event(fcitx::KeyEvent& event) -> void {
@@ -297,31 +297,31 @@ auto Context::handle_key_event(fcitx::KeyEvent& event) -> void {
             break;
         }
 
-        auto current_phrase = (Phrase*)(nullptr);
-        calc_phrase_in_cursor(&current_phrase, nullptr);
-        if(current_phrase == nullptr) {
+        auto current_word = (Word*)(nullptr);
+        calc_word_in_cursor(&current_word, nullptr);
+        if(current_word == nullptr) {
             break;
         }
 
-        make_branch_sentence();
+        make_branch_chain();
 
         // get candidate list
-        if(!current_phrase->is_candidates_initialized()) {
-            calc_phrase_in_cursor(&current_phrase, nullptr);
+        if(!current_word->is_candidates_initialized()) {
+            calc_word_in_cursor(&current_word, nullptr);
             auto dic  = share.primary_vocabulary;
             auto dics = std::vector<MeCabModel*>{dic.get()};
             for(auto& dic : share.additional_vocabularies) {
                 dics.emplace_back(dic.get());
             }
-            current_phrase->reset_candidates(PhraseCandidates(dics, current_phrase->get_candidates()));
-            current_phrase->set_protection_level(ProtectionLevel::PreserveTranslation);
+            current_word->reset_candidates(WordCandidates(dics, current_word->get_candidates()));
+            current_word->set_protection_level(ProtectionLevel::PreserveTranslation);
         }
-        if(!current_phrase->has_candidates()) {
+        if(!current_word->has_candidates()) {
             break;
         }
 
-        if(!is_candidate_list_for(context, &current_phrase->get_candidates())) {
-            context.inputPanel().setCandidateList(std::make_unique<CandidateList>(&current_phrase->get_candidates(), share.candidate_page_size));
+        if(!is_candidate_list_for(context, &current_word->get_candidates())) {
+            context.inputPanel().setCandidateList(std::make_unique<CandidateList>(&current_word->get_candidates(), share.candidate_page_size));
         }
         auto candidate_list = context.inputPanel().candidateList().get();
 
@@ -350,18 +350,18 @@ auto Context::handle_key_event(fcitx::KeyEvent& event) -> void {
             goto end;
         }
         move_cursor_back();
-        auto current_phrase   = (Phrase*)(nullptr);
-        auto cursor_in_phrase = size_t();
-        calc_phrase_in_cursor(&current_phrase, &cursor_in_phrase);
-        if(current_phrase == nullptr) {
+        auto current_word   = (Word*)(nullptr);
+        auto cursor_in_word = size_t();
+        calc_word_in_cursor(&current_word, &cursor_in_word);
+        if(current_word == nullptr) {
             break;
         }
-        auto raw   = u8tou32(current_phrase->get_raw().get_feature());
+        auto raw   = u8tou32(current_word->get_raw().get_feature());
         auto bytes = size_t(0);
         auto kana  = raw.begin();
         for(; kana != raw.end(); kana += 1) {
             bytes += fcitx_ucs4_char_len(*kana);
-            if(bytes == cursor_in_phrase) {
+            if(bytes == cursor_in_word) {
                 break;
             }
         }
@@ -369,26 +369,26 @@ auto Context::handle_key_event(fcitx::KeyEvent& event) -> void {
             break;
         }
 
-        // disassembly the kana to romaji and pop back.
+        // disassembly the kana to romaji and pop back
         auto kana8 = std::array<char, FCITX_UTF8_MAX_LENGTH>();
         fcitx_ucs4_to_utf8(*kana, kana8.data());
         if(auto romaji = kana_to_romaji(kana8.data())) {
             to_kana = std::move(*romaji);
             pop_back_u8(to_kana);
         }
-        // move cursor.
+        // move cursor
         cursor -= fcitx_ucs4_char_len(*kana);
 
-        // delete character from the phrase.
+        // delete character from the word
         raw.erase(kana);
-        current_phrase->get_mutable_feature() = u32tou8(raw);
+        current_word->get_mutable_feature() = u32tou8(raw);
 
-        // translate.
-        current_phrase->set_protection_level(ProtectionLevel::None);
-        *phrases = translate_phrases(*phrases, true)[0];
+        // translate
+        current_word->set_protection_level(ProtectionLevel::None);
+        *chain = translate_wordchain(*chain, true)[0];
 
-        // phrases may be empty.
-        if(phrases->empty()) {
+        // chain may be empty
+        if(chain->empty()) {
             reset();
         }
 
@@ -396,21 +396,21 @@ auto Context::handle_key_event(fcitx::KeyEvent& event) -> void {
         goto end;
     } while(0);
 
-    // handle reinterpret phrases
+    // handle reinterpret wordchain
     do {
         constexpr auto actions = std::array{Actions::ReinterpretNext, Actions::ReinterpretPrev};
-        if(phrases == nullptr || !share.key_config.match(actions, event)) {
+        if(chain == nullptr || !share.key_config.match(actions, event)) {
             break;
         }
 
         translation_changed = true;
 
-        if(sentence_changed) {
-            sentences.reset(translate_phrases(*phrases, false));
-            sentence_changed = false;
+        if(chain_changed) {
+            chains.reset(translate_wordchain(*chain, false));
+            chain_changed = false;
         }
-        if(!is_candidate_list_for(context, &sentences)) {
-            context.inputPanel().setCandidateList(std::make_unique<CandidateList>(&sentences, share.candidate_page_size));
+        if(!is_candidate_list_for(context, &chains)) {
+            context.inputPanel().setCandidateList(std::make_unique<CandidateList>(&chains, share.candidate_page_size));
         }
         auto candidate_list = context.inputPanel().candidateList().get();
         if(share.key_config.match(Actions::ReinterpretNext, event)) {
@@ -419,19 +419,19 @@ auto Context::handle_key_event(fcitx::KeyEvent& event) -> void {
             candidate_list->toCursorMovable()->prevCandidate();
         }
         context.updateUserInterface(fcitx::UserInterfaceComponent::InputPanel);
-        phrases = sentences.get_current_ptr();
-        for(auto& p : *phrases) {
+        chain = chains.get_current_ptr();
+        for(auto& p : *chain) {
             p.set_protection_level(ProtectionLevel::PreserveTranslation);
         }
         goto end;
     } while(0);
 
-    // handle commit phrases
+    // handle commit wordchain
     do {
         if(!share.key_config.match(Actions::Commit, event)) {
             break;
         }
-        if(phrases == nullptr) {
+        if(chain == nullptr) {
             if(to_kana.empty()) {
                 break;
             }
@@ -439,66 +439,66 @@ auto Context::handle_key_event(fcitx::KeyEvent& event) -> void {
             to_kana.clear();
             goto end;
         }
-        commit_all_phrases();
+        commit_wordchain();
         reset();
         apply_candidates();
         goto end;
     } while(0);
 
-    // handle move cursor phrase
+    // handle move cursor
     do {
-        constexpr auto actions = std::array{Actions::PhraseNext, Actions::PhrasePrev};
+        constexpr auto actions = std::array{Actions::WordNext, Actions::WordPrev};
         if(!share.key_config.match(actions, event)) {
             break;
         }
-        const auto forward          = share.key_config.match(Actions::PhraseNext, event);
-        auto       current_phrase   = (Phrase*)(nullptr);
-        auto       new_phrase       = (Phrase*)(nullptr);
-        auto       cursor_in_phrase = size_t();
-        calc_phrase_in_cursor(&current_phrase, &cursor_in_phrase);
-        if(current_phrase == nullptr) {
+        const auto forward        = share.key_config.match(Actions::WordNext, event);
+        auto       current_word   = (Word*)(nullptr);
+        auto       new_word       = (Word*)(nullptr);
+        auto       cursor_in_word = size_t();
+        calc_word_in_cursor(&current_word, &cursor_in_word);
+        if(current_word == nullptr) {
             break;
         }
-        new_phrase = forward ? current_phrase - 1 : current_phrase + 1;
-        if(new_phrase < &(*phrases)[0] || new_phrase > &phrases->back()) {
+        new_word = forward ? current_word - 1 : current_word + 1;
+        if(new_word < &(*chain)[0] || new_word > &chain->back()) {
             break;
         }
 
         // move cursor
         to_kana.clear();
         cursor = 0;
-        for(auto p = &(*phrases)[0]; p <= new_phrase; p += 1) {
+        for(auto p = &(*chain)[0]; p <= new_word; p += 1) {
             cursor += p->get_raw().get_feature().size();
         }
         apply_candidates();
         goto end;
     } while(0);
 
-    // handle split phrase
+    // handle split word
     do {
-        constexpr auto actions = std::array{Actions::SplitPhraseLeft, Actions::SplitPhraseRight};
+        constexpr auto actions = std::array{Actions::SplitWordLeft, Actions::SplitWordRight};
         if(!share.key_config.match(actions, event)) {
             break;
         }
 
-        make_branch_sentence();
+        make_branch_chain();
 
-        auto current_phrase   = (Phrase*)(nullptr);
-        auto cursor_in_phrase = size_t();
-        calc_phrase_in_cursor(&current_phrase, &cursor_in_phrase);
-        if(current_phrase == nullptr || fcitx_utf8_strlen(current_phrase->get_raw().get_feature().data()) <= 1) {
+        auto current_word   = (Word*)(nullptr);
+        auto cursor_in_word = size_t();
+        calc_word_in_cursor(&current_word, &cursor_in_word);
+        if(current_word == nullptr || fcitx_utf8_strlen(current_word->get_raw().get_feature().data()) <= 1) {
             break;
         }
 
-        // insert a new phrase right after the selected phrase
-        const auto phrase_index = current_phrase - &(*phrases)[0];
+        // insert a new word right after the selected word
+        const auto word_index = current_word - &(*chain)[0];
 
-        phrases->insert(phrases->begin() + phrase_index + 1, Phrase());
-        const auto a = &(*phrases)[phrase_index], b = &(*phrases)[phrase_index + 1];
+        chain->insert(chain->begin() + word_index + 1, Word());
+        const auto a = &(*chain)[word_index], b = &(*chain)[word_index + 1];
 
         // split 'a' into two
         const auto raw_32        = u8tou32(a->get_raw().get_feature());
-        const auto split_pos     = share.key_config.match(Actions::SplitPhraseLeft, event) ? 1 : raw_32.size() - 1;
+        const auto split_pos     = share.key_config.match(Actions::SplitWordLeft, event) ? 1 : raw_32.size() - 1;
         b->get_mutable_feature() = u32tou8(raw_32.substr(split_pos));
         a->get_mutable_feature() = u32tou8(raw_32.substr(0, split_pos));
 
@@ -506,45 +506,45 @@ auto Context::handle_key_event(fcitx::KeyEvent& event) -> void {
         a->set_protection_level(ProtectionLevel::PreserveSeparation);
         b->set_protection_level(ProtectionLevel::PreserveSeparation);
 
-        *phrases         = translate_phrases(*phrases, true)[0];
-        sentence_changed = true;
+        *chain        = translate_wordchain(*chain, true)[0];
+        chain_changed = true;
         apply_candidates();
         goto end;
     } while(0);
 
-    // handle merge phrase
+    // handle merge words
     do {
-        constexpr auto actions = std::array{Actions::MergePhraseLeft, Actions::MergePhraseRight};
+        constexpr auto actions = std::array{Actions::MergeWordsLeft, Actions::MergeWordsRight};
         if(!share.key_config.match(actions, event)) {
             break;
         }
 
-        make_branch_sentence();
+        make_branch_chain();
 
-        auto current_phrase   = (Phrase*)(nullptr);
-        auto cursor_in_phrase = size_t();
-        calc_phrase_in_cursor(&current_phrase, &cursor_in_phrase);
-        if(current_phrase == nullptr) {
+        auto current_word   = (Word*)(nullptr);
+        auto cursor_in_word = size_t();
+        calc_word_in_cursor(&current_word, &cursor_in_word);
+        if(current_word == nullptr) {
             apply_candidates();
             goto end;
         }
-        const auto left         = share.key_config.match(Actions::MergePhraseLeft, event);
-        const auto merge_phrase = current_phrase + (left ? -1 : 1);
-        if(merge_phrase < &(*phrases)[0] || merge_phrase > &phrases->back()) {
+        const auto left       = share.key_config.match(Actions::MergeWordsLeft, event);
+        const auto merge_word = current_word + (left ? -1 : 1);
+        if(merge_word < &(*chain)[0] || merge_word > &chain->back()) {
             apply_candidates();
             goto end;
         }
 
-        // merge 'current_phrase' and 'merge_phrase' into 'current_phrase'
-        const auto a = merge_phrase->get_raw().get_feature(), b = current_phrase->get_raw().get_feature();
-        current_phrase->get_mutable_feature() = left ? a + b : b + a;
-        current_phrase->set_protection_level(ProtectionLevel::PreserveSeparation);
+        // merge 'current_word' and 'merge_word' into 'current_word'
+        const auto a = merge_word->get_raw().get_feature(), b = current_word->get_raw().get_feature();
+        current_word->get_mutable_feature() = left ? a + b : b + a;
+        current_word->set_protection_level(ProtectionLevel::PreserveSeparation);
 
-        // remove 'merge_phrase'
-        const auto phrase_index = merge_phrase - &(*phrases)[0];
-        phrases->erase(phrases->begin() + phrase_index);
+        // remove 'merge_word'
+        const auto word_index = merge_word - &(*chain)[0];
+        chain->erase(chain->begin() + word_index);
 
-        *phrases = translate_phrases(*phrases, true)[0];
+        *chain = translate_wordchain(*chain, true)[0];
         apply_candidates();
         goto end;
     } while(0);
@@ -556,57 +556,57 @@ auto Context::handle_key_event(fcitx::KeyEvent& event) -> void {
             break;
         }
 
-        make_branch_sentence();
+        make_branch_chain();
 
-        auto current_phrase   = (Phrase*)(nullptr);
-        auto cursor_in_phrase = size_t();
-        calc_phrase_in_cursor(&current_phrase, &cursor_in_phrase);
-        if(current_phrase == nullptr) {
+        auto current_word   = (Word*)(nullptr);
+        auto cursor_in_word = size_t();
+        calc_word_in_cursor(&current_word, &cursor_in_word);
+        if(current_word == nullptr) {
             goto end;
         }
-        const auto move_phrase = current_phrase + 1;
-        if(move_phrase > &phrases->back()) {
+        const auto move_word = current_word + 1;
+        if(move_word > &chain->back()) {
             apply_candidates();
             goto end;
         }
 
-        // align cursor to phrase back
-        cursor += current_phrase->get_raw().get_feature().size() - cursor_in_phrase;
+        // align cursor to word's back
+        cursor += current_word->get_raw().get_feature().size() - cursor_in_word;
 
         // move cursor and separator
         const auto left = share.key_config.match(Actions::MoveSeparatorLeft, event);
         if(left) {
-            auto       current_u32 = u8tou32(current_phrase->get_raw().get_feature());
+            auto       current_u32 = u8tou32(current_word->get_raw().get_feature());
             const auto moved_char  = u32tou8(current_u32.back());
-            move_phrase->get_mutable_feature().insert(0, moved_char);
+            move_word->get_mutable_feature().insert(0, moved_char);
             current_u32.pop_back();
             if(current_u32.empty()) {
-                phrases->erase(phrases->begin() + (current_phrase - phrases->data()));
+                chain->erase(chain->begin() + (current_word - chain->data()));
             } else {
-                current_phrase->get_mutable_feature() = u32tou8(current_u32);
+                current_word->get_mutable_feature() = u32tou8(current_u32);
             }
             cursor -= moved_char.size();
             if(cursor == 0) {
-                // left most phrase merged
-                cursor = move_phrase->get_mutable_feature().size();
+                // left most word merged
+                cursor = move_word->get_mutable_feature().size();
             }
         } else {
-            auto       move_u32   = u8tou32(move_phrase->get_raw().get_feature());
+            auto       move_u32   = u8tou32(move_word->get_raw().get_feature());
             const auto moved_char = u32tou8(move_u32[0]);
-            current_phrase->get_mutable_feature() += moved_char;
+            current_word->get_mutable_feature() += moved_char;
             move_u32.erase(0, 1);
             if(move_u32.empty()) {
-                phrases->erase(phrases->begin() + (move_phrase - phrases->data()));
+                chain->erase(chain->begin() + (move_word - chain->data()));
             } else {
-                move_phrase->get_mutable_feature() = u32tou8(move_u32);
+                move_word->get_mutable_feature() = u32tou8(move_u32);
             }
             cursor += moved_char.size();
         }
 
-        current_phrase->set_protection_level(ProtectionLevel::PreserveSeparation);
-        move_phrase->set_protection_level(ProtectionLevel::PreserveSeparation);
-        *phrases         = translate_phrases(*phrases, true)[0];
-        sentence_changed = true;
+        current_word->set_protection_level(ProtectionLevel::PreserveSeparation);
+        move_word->set_protection_level(ProtectionLevel::PreserveSeparation);
+        *chain        = translate_wordchain(*chain, true)[0];
+        chain_changed = true;
         apply_candidates();
         goto end;
     } while(0);
@@ -617,16 +617,16 @@ auto Context::handle_key_event(fcitx::KeyEvent& event) -> void {
             break;
         }
 
-        make_branch_sentence();
+        make_branch_chain();
 
-        auto current_phrase = (Phrase*)(nullptr);
-        calc_phrase_in_cursor(&current_phrase);
-        if(current_phrase == nullptr) {
+        auto current_word = (Word*)(nullptr);
+        calc_word_in_cursor(&current_word);
+        if(current_word == nullptr) {
             break;
         }
 
         auto        katakana32 = std::u32string();
-        const auto& raw        = current_phrase->get_raw().get_feature();
+        const auto& raw        = current_word->get_raw().get_feature();
         for(const auto c : u8tou32(raw)) {
             if(const auto p = hiragana_katakana_table.find(c); p != hiragana_katakana_table.end()) {
                 katakana32 += p->second;
@@ -649,18 +649,18 @@ auto Context::handle_key_event(fcitx::KeyEvent& event) -> void {
                     continue;
                 }
                 if(node->stat == MECAB_NOR_NODE) {
-                    found           = true;
-                    *current_phrase = Phrase(MeCabWord(raw), MeCabWord(katakana, node->rcAttr, node->lcAttr, node->wcost, node->cost, true));
+                    found         = true;
+                    *current_word = Word(MeCabWord(raw), MeCabWord(katakana, node->rcAttr, node->lcAttr, node->wcost, node->cost, true));
                     break;
                 }
             }
             lattice.clear();
             if(!found) {
-                current_phrase->override_translated(MeCabWord(katakana));
+                current_word->override_translated(MeCabWord(katakana));
             }
         }
 
-        current_phrase->set_protection_level(ProtectionLevel::PreserveTranslation);
+        current_word->set_protection_level(ProtectionLevel::PreserveTranslation);
         apply_candidates();
         goto end;
     } while(0);
@@ -675,7 +675,7 @@ auto Context::handle_key_event(fcitx::KeyEvent& event) -> void {
         if(fcitx_utf8_strlen(romaji_8.data()) != 1) {
             break;
         }
-        merge_branch_sentences();
+        merge_branch_chains();
         move_cursor_back();
 
         to_kana += romaji_8;
@@ -710,11 +710,11 @@ end:
         event.filterAndAccept();
         panel.setClientPreedit(build_preedit_text());
         context.updatePreedit();
-    } else if(phrases != nullptr) {
+    } else if(chain != nullptr) {
         event.filterAndAccept();
     }
 
-    if(phrases == nullptr) {
+    if(chain == nullptr) {
         context.inputPanel().setCandidateList(nullptr);
         context.updateUserInterface(fcitx::UserInterfaceComponent::InputPanel);
     } else {
@@ -741,8 +741,8 @@ auto Context::handle_deactivate() -> void {
     context.inputPanel().reset();
     context.updatePreedit();
     context.updateUserInterface(fcitx::UserInterfaceComponent::InputPanel);
-    if(phrases != nullptr) {
-        commit_all_phrases();
+    if(chain != nullptr) {
+        commit_wordchain();
         reset();
     }
     if(!to_kana.empty()) {
