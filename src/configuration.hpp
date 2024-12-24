@@ -19,8 +19,10 @@ enum class Actions : size_t {
     SplitWordRight,
     MergeWordsLeft,
     MergeWordsRight,
-    MoveSeparatorLeft,
-    MoveSeparatorRight,
+    TakeFromLeft,
+    TakeFromRight,
+    GiveToLeft,
+    GiveToRight,
     ConvertKatakana,
     ActionsLimit,
 };
@@ -40,13 +42,14 @@ struct KeyConfig {
         return keys[static_cast<size_t>(action)];
     }
 
-    auto match(const auto& actions, const fcitx::KeyEvent& event) const -> bool {
+    template <size_t len>
+    auto match(const Actions (&&actions)[len], const fcitx::KeyEvent& event) const -> std::optional<Actions> {
         for(const auto a : actions) {
             if(match(a, event)) {
-                return true;
+                return a;
             }
         }
-        return false;
+        return {};
     }
 
     auto match(const Actions action, const fcitx::KeyEvent& event) const -> bool {

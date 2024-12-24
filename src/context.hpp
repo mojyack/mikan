@@ -15,7 +15,7 @@ class Context final : public fcitx::InputContextProperty {
     fcitx::InputContext& context;
     engine::Engine&      engine;
     Share&               share;
-    size_t               cursor;       // in bytes
+    size_t               cursor;       // word index
     RomajiIndex          romaji_index; // used in handle_romaji().
     std::string          to_kana;
     WordChainCandidates  chains;
@@ -25,15 +25,12 @@ class Context final : public fcitx::InputContextProperty {
     auto is_empty() const -> bool;
     auto get_current_chain() -> WordChain&;
     auto get_current_chain() const -> const WordChain&;
-    auto commit_word(const Word* word) -> void;
+    auto commit_word(const Word& word) -> void;
     auto commit_wordchain() -> void;
     auto make_branch_chain() -> void;
     auto merge_branch_chains() -> bool;
     auto shrink_chains(bool reserve_one = false) -> void;
     auto delete_surrounding_text() -> bool;
-    auto calc_word_in_cursor(Word** word, size_t* cursor_in_word = nullptr) const -> void;
-    auto move_cursor_back() -> void;
-    auto append_kana(const std::string& kana) -> void;
     auto translate_wordchain(const WordChain& source, bool best_only) -> WordChains;
     auto build_preedit_text() const -> fcitx::Text;
     auto build_kana_text() const -> std::string;

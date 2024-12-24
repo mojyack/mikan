@@ -42,7 +42,8 @@ mikan uses vim-inspired keybinds.
 - Ctrl+J/K: Select previous/next word conversion candidate
 - Alt+H/L: Split first/last one character from current word
 - Alt+J/K: Merge previous/next and current word
-- Ctrl+Alt+H/L: Move separater between current and next words to left/right
+- Ctrl+Alt+H/J: Take/Give one character from/to previous word
+- Ctrl+Alt+L/K: Take/Give one character from/to next word
 - Space: Start conversion of the whole sentence and select the next sentence candidate
 - Shift+Space: Select previous sentence candidate
 - Return: Commit sentence

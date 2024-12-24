@@ -359,7 +359,7 @@ auto Engine::translate_wordchain(const WordChain& source, const bool best_only, 
     constexpr auto N_BEST_LIMIT = size_t(30);
 
     auto       result      = WordChains();
-    auto       source_data = build_raw_and_constraints(source, ignore_protection);
+    auto       source_data = build_raw_and_constraints(source, ignore_protection); // FIXME: use struct bind
     const auto buffer      = std::move(source_data.first);
     const auto constraints = std::move(source_data.second);
     {
@@ -470,23 +470,25 @@ Engine::Engine(Share& share)
     }
 
     share.key_config.keys.resize(static_cast<size_t>(Actions::ActionsLimit));
-    share.key_config[Actions::Backspace]          = {{FcitxKey_BackSpace}};
-    share.key_config[Actions::ReinterpretNext]    = {{FcitxKey_space}};
-    share.key_config[Actions::ReinterpretPrev]    = {{FcitxKey_space, fcitx::KeyState::Shift}};
-    share.key_config[Actions::CandidateNext]      = {{FcitxKey_Down}, {FcitxKey_J, fcitx::KeyState::Ctrl}};
-    share.key_config[Actions::CandidatePrev]      = {{FcitxKey_Up}, {FcitxKey_K, fcitx::KeyState::Ctrl}};
-    share.key_config[Actions::CandidatePageNext]  = {{FcitxKey_Left}};
-    share.key_config[Actions::CandidatePagePrev]  = {{FcitxKey_Right}};
-    share.key_config[Actions::Commit]             = {{FcitxKey_Return}};
-    share.key_config[Actions::WordNext]           = {{FcitxKey_Left}, {FcitxKey_H, fcitx::KeyState::Ctrl}};
-    share.key_config[Actions::WordPrev]           = {{FcitxKey_Right}, {FcitxKey_L, fcitx::KeyState::Ctrl}};
-    share.key_config[Actions::SplitWordLeft]      = {{FcitxKey_Left, fcitx::KeyState::Ctrl}, {FcitxKey_H, fcitx::KeyState::Alt}};
-    share.key_config[Actions::SplitWordRight]     = {{FcitxKey_Right, fcitx::KeyState::Ctrl}, {FcitxKey_L, fcitx::KeyState::Alt}};
-    share.key_config[Actions::MergeWordsLeft]     = {{FcitxKey_Left, fcitx::KeyState::Ctrl_Alt}, {FcitxKey_J, fcitx::KeyState::Alt}};
-    share.key_config[Actions::MergeWordsRight]    = {{FcitxKey_Right, fcitx::KeyState::Ctrl_Alt}, {FcitxKey_K, fcitx::KeyState::Alt}};
-    share.key_config[Actions::MoveSeparatorLeft]  = {{FcitxKey_Left, fcitx::KeyState::Alt}, {FcitxKey_H, fcitx::KeyState::Ctrl_Alt}};
-    share.key_config[Actions::MoveSeparatorRight] = {{FcitxKey_Right, fcitx::KeyState::Alt}, {FcitxKey_L, fcitx::KeyState::Ctrl_Alt}};
-    share.key_config[Actions::ConvertKatakana]    = {{FcitxKey_q}};
+    share.key_config[Actions::Backspace]         = {{FcitxKey_BackSpace}};
+    share.key_config[Actions::ReinterpretNext]   = {{FcitxKey_space}};
+    share.key_config[Actions::ReinterpretPrev]   = {{FcitxKey_space, fcitx::KeyState::Shift}};
+    share.key_config[Actions::CandidateNext]     = {{FcitxKey_Down}, {FcitxKey_J, fcitx::KeyState::Ctrl}};
+    share.key_config[Actions::CandidatePrev]     = {{FcitxKey_Up}, {FcitxKey_K, fcitx::KeyState::Ctrl}};
+    share.key_config[Actions::CandidatePageNext] = {{FcitxKey_Left}};
+    share.key_config[Actions::CandidatePagePrev] = {{FcitxKey_Right}};
+    share.key_config[Actions::Commit]            = {{FcitxKey_Return}};
+    share.key_config[Actions::WordNext]          = {{FcitxKey_Left}, {FcitxKey_L, fcitx::KeyState::Ctrl}};
+    share.key_config[Actions::WordPrev]          = {{FcitxKey_Right}, {FcitxKey_H, fcitx::KeyState::Ctrl}};
+    share.key_config[Actions::SplitWordLeft]     = {{FcitxKey_H, fcitx::KeyState::Alt}};
+    share.key_config[Actions::SplitWordRight]    = {{FcitxKey_L, fcitx::KeyState::Alt}};
+    share.key_config[Actions::MergeWordsLeft]    = {{FcitxKey_J, fcitx::KeyState::Alt}};
+    share.key_config[Actions::MergeWordsRight]   = {{FcitxKey_K, fcitx::KeyState::Alt}};
+    share.key_config[Actions::GiveToLeft]        = {{FcitxKey_J, fcitx::KeyState::Ctrl_Alt}};
+    share.key_config[Actions::GiveToRight]       = {{FcitxKey_K, fcitx::KeyState::Ctrl_Alt}};
+    share.key_config[Actions::TakeFromLeft]      = {{FcitxKey_H, fcitx::KeyState::Ctrl_Alt}};
+    share.key_config[Actions::TakeFromRight]     = {{FcitxKey_L, fcitx::KeyState::Ctrl_Alt}};
+    share.key_config[Actions::ConvertKatakana]   = {{FcitxKey_q}}; // not Q
 }
 
 Engine::~Engine() {
