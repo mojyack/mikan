@@ -7,6 +7,7 @@
 #include "engine.hpp"
 #include "romaji-index.hpp"
 #include "share.hpp"
+#include "wordchain-candidates.hpp"
 
 namespace mikan {
 class Context final : public fcitx::InputContextProperty {

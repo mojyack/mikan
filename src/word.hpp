@@ -1,7 +1,7 @@
 #pragma once
 #include <mecab.h>
 
-#include "candidate.hpp"
+#include "word-candidates.hpp"
 
 namespace mikan {
 enum class ProtectionLevel {
@@ -83,51 +83,4 @@ class Word {
 
 using WordChain  = std::vector<Word>;
 using WordChains = std::vector<WordChain>;
-
-class WordChainCandidates : public Candidates {
-  private:
-    WordChains data;
-
-  public:
-    auto empty() const -> bool {
-        return data.empty();
-    }
-
-    auto get_data_size() const -> size_t {
-        return data.size();
-    }
-
-    auto get_labels() const -> std::vector<std::string> {
-        auto labels = std::vector<std::string>();
-        for(auto& s : data) {
-            auto& label = labels.emplace_back();
-            for(auto& p : s) {
-                label += p.get_translated().get_feature();
-            }
-        }
-        return labels;
-    }
-
-    auto reset(WordChains&& n) -> void { // FIXME: as value
-        data  = std::move(n);
-        index = 0;
-    }
-
-    auto get_current_ptr() -> WordChain* {
-        if(data.empty()) {
-            return nullptr;
-        }
-        return &data[index];
-    }
-
-    auto clear() -> void {
-        data.clear();
-    }
-
-    auto operator[](const size_t index) -> WordChain& {
-        return data[index];
-    }
-
-    WordChainCandidates() = default;
-};
 } // namespace mikan

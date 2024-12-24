@@ -1,5 +1,5 @@
 #pragma once
-#include "candidate.hpp"
+#include "candidates.hpp"
 
 namespace mikan {
 class CandidateWord : public fcitx::CandidateWord {

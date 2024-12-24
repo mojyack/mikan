@@ -1,6 +1,7 @@
 #pragma once
 #include <optional>
 #include <string>
+#include <vector>
 
 namespace mikan {
 auto get_user_config_dir() -> std::string;
