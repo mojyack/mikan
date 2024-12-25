@@ -1,6 +1,8 @@
+#include <algorithm>
 #include <array>
 #include <filesystem>
 #include <fstream>
+#include <unordered_set>
 
 #include "engine.hpp"
 #include "macros/unwrap.hpp"
@@ -8,6 +10,7 @@
 #include "tmp.hpp"
 #include "util/charconv.hpp"
 #include "util/split.hpp"
+#include "util/string-map.hpp"
 
 namespace {
 auto split_strip(const std::string_view str, const std::string_view dlm = " ") -> std::vector<std::string_view> {
@@ -15,6 +18,8 @@ auto split_strip(const std::string_view str, const std::string_view dlm = " ") -
     std::erase(vec, "");
     return vec;
 }
+
+using StringSet = std::unordered_set<std::string, internal::StringHash, std::ranges::equal_to>;
 } // namespace
 
 namespace mikan::engine {
@@ -23,14 +28,14 @@ auto parse_line_to_history(const std::string_view line) -> std::optional<History
     const auto elms = split_strip(line, ",");
     auto       hist = History();
     if(elms.size() == 2) {
-        hist.raw         = elms[0];
-        hist.translation = MeCabWord(elms[1]);
+        hist.raw       = elms[0];
+        hist.converted = MeCabWord(std::string(elms[1]));
     } else if(elms.size() == 5) {
         hist.raw = elms[0];
         unwrap(rattr, from_chars<unsigned short>(elms[1]));
         unwrap(lattr, from_chars<unsigned short>(elms[2]));
-        unwrap(cost, from_chars<unsigned short>(elms[3]));
-        hist.translation = MeCabWord(elms[4], rattr, lattr, cost, 0, true);
+        unwrap(cost, from_chars<short>(elms[3]));
+        hist.converted = MeCabWord(std::string(elms[4]), WordParameters{rattr, lattr, cost, 0});
     } else {
         bail();
     }
@@ -45,15 +50,15 @@ auto parse_line_to_key_value(const std::string_view line) -> std::pair<std::stri
     return {vec[0], vec[1]};
 }
 
-auto build_raw_and_constraints(const WordChain& source, const bool ignore_protection) -> std::pair<std::string, std::vector<FeatureConstriant>> {
+auto build_raw_and_constraints(const WordChain& chain, const bool ignore_protection) -> std::pair<std::string, std::vector<FeatureConstriant>> {
     auto feature_constriants = std::vector<FeatureConstriant>();
     auto buffer              = std::string();
-    for(auto p = source.begin(); p != source.end(); p += 1) {
-        const auto& raw = p->get_raw().get_feature();
-        if(!ignore_protection && p->get_protection_level() != ProtectionLevel::None) {
+    for(const auto& word : chain) {
+        const auto& raw = word.raw();
+        if(!ignore_protection && word.protection != ProtectionLevel::None) {
             auto begin = buffer.size();
             auto end   = begin + raw.size();
-            feature_constriants.emplace_back(FeatureConstriant{begin, end, &*p});
+            feature_constriants.emplace_back(FeatureConstriant{begin, end, &word});
         };
         buffer += raw;
     }
@@ -78,10 +83,10 @@ auto load_text_dictionary(const char* const path) -> std::vector<History> {
 }
 
 auto set_constraints(MeCab::Lattice& lattice, const std::vector<FeatureConstriant>& constraints) -> void {
-    for(const auto& f : constraints) {
-        const auto& word    = *f.word;
-        const auto  feature = word.get_protection_level() == ProtectionLevel::PreserveTranslation ? word.get_translated().get_feature().data() : "*";
-        lattice.set_feature_constraint(f.begin, f.end, feature);
+    for(const auto& c : constraints) {
+        const auto& word    = *c.word;
+        const auto  feature = word.protection == ProtectionLevel::PreserveTranslation ? word.feature().data() : "*";
+        lattice.set_feature_constraint(c.begin, c.end, feature);
     }
 }
 
@@ -92,7 +97,7 @@ auto parse_nodes(MeCab::Lattice& lattice, const bool needs_parsed_feature) -> st
         if(node->stat == MECAB_BOS_NODE || node->stat == MECAB_EOS_NODE) {
             continue;
         }
-        parsed.emplace_back(node);
+        parsed.emplace_back(Word::from_node(*node));
         if(needs_parsed_feature) {
             parsed_feature += node->feature;
         }
@@ -141,14 +146,6 @@ auto Engine::load_configuration() -> bool {
             } else {
                 error = true;
             }
-        } else if(key == "history") {
-            if(value == "on") {
-                enable_history = true;
-            } else if(value == "off") {
-                enable_history = false;
-            } else {
-                error = true;
-            }
         } else if(key == "dictionaries") {
             share.dictionary_path = value;
         } else {
@@ -162,62 +159,65 @@ auto Engine::load_configuration() -> bool {
 }
 
 auto Engine::add_history(const History& word) -> bool {
-    auto new_word         = true;
-    auto word_not_changed = true;
+    auto have_new_word    = true;
+    auto cost_not_changed = true;
     auto duplicates       = size_t(0);
-    for(auto& l : histories) {
-        if(l.raw != word.raw || !l.translation.has_same_attr(word.translation)) {
+    for(auto& hist : histories) {
+        auto& lword = hist.converted;
+        auto& rword = word.converted;
+        if(hist.raw != word.raw || lword.params != lword.params) {
             continue;
         }
-        if(l.translation.get_feature() == word.translation.get_feature()) {
-            if(l.translation.get_word_cost() != word.translation.get_word_cost()) {
-                l.translation.override_word_cost(word.translation.get_word_cost());
-                word_not_changed = false;
+        if(lword.feature == rword.feature) {
+            if(lword.params->word_cost != rword.params->word_cost) {
+                lword.params->word_cost = rword.params->word_cost;
+                cost_not_changed        = false;
             }
-            new_word = false;
+            have_new_word = false;
             break;
         } else {
             duplicates += 1;
         }
     }
 
-    if(new_word) {
+    if(have_new_word) {
         histories.emplace_back(word);
         if(duplicates != 0) {
-            MeCabWord& w = histories.back().translation;
-            w.override_word_cost(w.get_word_cost() - duplicates);
+            auto& w = histories.back().converted;
+            w.params->word_cost -= duplicates;
         }
     }
-    return new_word || !word_not_changed;
+    return have_new_word || !cost_not_changed;
 }
 
 auto Engine::save_hisotry() const -> void {
     auto file = std::ofstream(history_file_path);
-    for(const auto& l : histories) {
+    for(const auto& hist : histories) {
         auto line = std::string();
-        line += l.raw + ",";
-        line += std::to_string(l.translation.get_cattr_left()) + ",";
-        line += std::to_string(l.translation.get_cattr_right()) + ",";
-        line += std::to_string(l.translation.get_word_cost()) + ",";
-        line += l.translation.get_feature();
+        line += hist.raw + ",";
+        const auto& word = hist.converted;
+        if(word.params) {
+            line += std::to_string(word.params->cattr_left) + ",";
+            line += std::to_string(word.params->cattr_right) + ",";
+            line += std::to_string(word.params->word_cost) + ",";
+        }
+        line += word.feature;
         file << line << std::endl;
     }
 }
 
 auto Engine::dump_internal_dict(const char* const path) const -> void {
     auto to_compile = std::vector<History>();
-    for(const auto& d : user_dictionary_paths) {
-        auto hists = load_text_dictionary(d.data());
+    for(const auto& dict : user_dictionary_paths) {
+        auto hists = load_text_dictionary(dict.data());
         std::copy(hists.begin(), hists.end(), std::back_inserter(to_compile));
     }
     std::copy(histories.begin(), histories.end(), std::back_inserter(to_compile));
     auto file = std::ofstream(path);
-    for(const auto& l : to_compile) {
-        const auto& t     = l.translation;
-        const auto  lattr = t.has_valid_word_info() ? t.get_cattr_left() : 0;
-        const auto  rattr = t.has_valid_word_info() ? t.get_cattr_right() : 0;
-        const auto  cost  = t.has_valid_word_info() ? t.get_word_cost() : 0;
-        file << l.raw << "," << std::to_string(lattr) << "," << std::to_string(rattr) << "," << std::to_string(cost) << "," << t.get_feature() << std::endl;
+    for(const auto& hist : to_compile) {
+        const auto& word   = hist.converted;
+        const auto  params = word.params ? *word.params : WordParameters();
+        file << build_string(hist.raw, ",", params.cattr_left, ",", params.cattr_right, ",", params.word_cost, ",", word.feature) << std::endl;
     }
 }
 
@@ -245,145 +245,25 @@ auto Engine::reload_dictionary(const char* const user_dict) -> void {
     share.primary_vocabulary = std::make_shared<MeCabModel>(system_dictionary_path.data(), user_dict, true);
 }
 
-auto Engine::recalc_cost(const WordChain& source) const -> long {
-    // source.back().get_translated().get_total_cost() sould be total cost.
-    // but it seems that mecab sets incorrect cost values when parsing delimiter positions and words at the same time.
-    // so we have to specify constraints to all words before parsing to get the correct cost.
-    auto copy = source;
-    for(auto& p : copy) {
-        p.set_protection_level(ProtectionLevel::PreserveTranslation);
-    }
-    auto       source_data = build_raw_and_constraints(source, false);
-    const auto buffer      = std::move(source_data.first);
-    const auto constraints = std::move(source_data.second);
-
-    auto  dic     = share.primary_vocabulary;
-    auto& lattice = *dic->lattice;
-    lattice.set_request_type(MECAB_ONE_BEST);
-    lattice.set_sentence(buffer.data());
-    set_constraints(lattice, constraints);
-    dic->tagger->parse(&lattice);
-    return parse_nodes(lattice, true).second.back().get_translated().get_total_cost();
-}
-
-auto Engine::compare_and_fix_dictionary(const WordChain& wants) -> void {
-    {
-        // before comparing, add words which is unknown and not from system dictionary.
-        auto added = false;
-        for(const auto& p : wants) {
-            auto& word = p.get_translated();
-            if(word.has_valid_word_info()) {
-                continue;
-            }
-            added = true;
-            add_history({word.get_feature(), word});
-        }
-        if(added) {
-            compile_and_reload_user_dictionary();
-        }
-    }
-
-    const auto source_cost = recalc_cost(wants);
-    while(1) {
-        auto to_decrements = std::vector<History>();
-        auto best          = translate_wordchain(wants, true, true)[0];
-        auto done          = true;
-        for(auto& p : best) {
-            p.set_protection_level(ProtectionLevel::None);
-        }
-        const auto total_diff = source_cost - recalc_cost(best);
-        for(auto i = size_t(0); i < wants.size(); i += 1) {
-            auto&       pb = best[i];
-            const Word& pw = wants[i];
-            if(pb.get_raw().get_feature() == pw.get_raw().get_feature() && pb.get_translated().get_feature() == pw.get_translated().get_feature()) {
-                continue;
-            }
-            done      = false;
-            auto left = std::string();
-            for(auto p = size_t(i); p < best.size(); p += 1) {
-                left += best[p].get_raw().get_feature();
-            }
-            auto& sw = pw.get_raw().get_feature();
-            to_decrements.emplace_back(History{sw, pw.get_translated()});
-
-            pb.get_mutable_feature() = left.substr(0, sw.size());
-            pb.override_translated(pw.get_translated());
-            pb.set_protection_level(ProtectionLevel::PreserveTranslation);
-            if(i + 1 < wants.size()) {
-                best.resize(i + 2);
-                best[i + 1].get_mutable_feature() = left.substr(sw.size());
-            } else {
-                best.resize(i + 1);
-            }
-            best = translate_wordchain(best, true, false)[0];
-        }
-        if(done) {
-            return;
-        }
-        const auto cost_decrement = total_diff / to_decrements.size() + 1;
-        for(auto& d : to_decrements) {
-            auto&      word         = d.translation;
-            const auto found        = std::find_if(histories.begin(), histories.end(), [&d](const History& o) {
-                return d.raw == o.raw && d.translation.get_feature() == o.translation.get_feature() && d.translation.has_same_attr(o.translation);
-            });
-            const auto current_cost = (found != histories.end() ? found->translation : word).get_word_cost();
-            word.override_word_cost(current_cost - cost_decrement);
-            add_history(d);
-        }
-        compile_and_reload_user_dictionary();
-    }
-}
-
-auto Engine::dictionary_updater_main() -> void {
-loop:
-    if(finish_dictionary_updater) {
-        return;
-    }
-    auto request = std::optional<WordChain>();
-    {
-        auto [lock, requests] = fix_requests.access();
-        if(!requests.empty()) {
-            request = std::move(requests[0]);
-            requests.erase(requests.begin());
-        }
-    }
-    if(request) {
-        compare_and_fix_dictionary(*request);
-    } else {
-        dictionary_update_event.wait();
-    }
-    goto loop;
-}
-
-auto Engine::translate_wordchain(const WordChain& source, const bool best_only, const bool ignore_protection) const -> WordChains {
+auto Engine::convert_wordchain(const WordChain& source, const bool best_only, const bool ignore_protection) const -> WordChains {
     constexpr auto N_BEST_LIMIT = size_t(30);
 
-    auto       result      = WordChains();
-    auto       source_data = build_raw_and_constraints(source, ignore_protection); // FIXME: use struct bind
-    const auto buffer      = std::move(source_data.first);
-    const auto constraints = std::move(source_data.second);
+    auto result                   = WordChains();
+    const auto [raw, constraints] = build_raw_and_constraints(source, ignore_protection);
     {
         auto  dic     = share.primary_vocabulary;
         auto& lattice = *dic->lattice;
         lattice.set_request_type(best_only ? MECAB_ONE_BEST : MECAB_NBEST);
-        lattice.set_sentence(buffer.data());
+        lattice.set_sentence(raw.data());
         set_constraints(lattice, constraints);
         dic->tagger->parse(&lattice);
-        auto result_features = std::vector<std::string>();
+
+        auto found_features = StringSet();
         while(1) {
-            const auto parsed_nodes   = parse_nodes(lattice, true);
-            const auto parsed_feature = std::string(std::move(parsed_nodes.first));
-            const auto parsed         = WordChain(std::move(parsed_nodes.second));
-            auto       matched        = false;
-            for(const auto& r : result_features) {
-                if(r == parsed_feature) {
-                    matched = true;
-                    break;
-                }
-            }
-            if(!matched) {
+            auto [features, parsed] = parse_nodes(lattice, true);
+            if(!found_features.contains(features)) {
                 result.emplace_back(parsed);
-                result_features.emplace_back(std::move(parsed_feature));
+                found_features.emplace(std::move(features));
             }
             if(!lattice.next() || result.size() >= N_BEST_LIMIT) {
                 break;
@@ -395,39 +275,29 @@ auto Engine::translate_wordchain(const WordChain& source, const bool best_only, 
         return result;
     }
 
-    // retrive protected wordchain.
+    // retrive protected wordchain
     for(auto& r : result) {
-        auto total_bytes             = size_t(0);
-        auto protected_wordchain_pos = constraints.cbegin();
-        for(auto& p : r) {
-            if(protected_wordchain_pos == constraints.cend()) {
+        auto total_bytes = size_t(0);
+        auto constraint  = constraints.cbegin();
+        for(auto& word : r) {
+            if(constraint == constraints.cend()) {
                 break;
             }
-            if(total_bytes == protected_wordchain_pos->begin) {
-                // this is a word from a protected one.
-                p.set_protection_level(protected_wordchain_pos->word->get_protection_level());
-                if(p.get_protection_level() == ProtectionLevel::PreserveTranslation) {
-                    p = *protected_wordchain_pos->word;
+            if(total_bytes == constraint->begin) {
+                // this is a word from a protected one
+                word.protection = constraint->word->protection;
+                if(word.protection == ProtectionLevel::PreserveTranslation) {
+                    word = *constraint->word;
                 }
-                protected_wordchain_pos += 1;
-            } else if(total_bytes > protected_wordchain_pos->begin) {
+                constraint += 1;
+            } else if(total_bytes > constraint->begin) {
                 PANIC("protected word lost");
             }
-            total_bytes += p.get_raw().get_feature().size();
+            total_bytes += word.raw().size();
         }
     }
 
     return result;
-}
-
-auto Engine::request_fix_dictionary(WordChain wants) -> void {
-    if(!enable_history) {
-        return;
-    }
-
-    auto [lock, requests] = fix_requests.access();
-    requests.emplace_back(wants);
-    dictionary_update_event.notify();
 }
 
 Engine::Engine(Share& share)
@@ -449,23 +319,11 @@ Engine::Engine(Share& share)
     }
     ASSERT(!system_dictionary_path.empty(), "failed to find system dictionary");
 
-    if(enable_history) {
-        const auto cache_dir = get_user_cache_dir();
-        if(!std::filesystem::is_directory(cache_dir)) {
-            std::filesystem::create_directories(cache_dir);
-        }
-        history_file_path = cache_dir + "/history.csv";
-
-        histories          = load_text_dictionary(history_file_path.data());
-        dictionary_updater = std::thread(std::bind(&Engine::dictionary_updater_main, this));
-    }
-
     if(const auto compiler_path = get_dictionary_compiler_path()) {
         dictionary_compiler_path = compiler_path.value() + "/mecab-dict-index";
         compile_and_reload_user_dictionary();
     } else {
         FCITX_WARN() << "missing dictionary compiler";
-        enable_history = false;
         reload_dictionary();
     }
 
@@ -489,14 +347,5 @@ Engine::Engine(Share& share)
     share.key_config[Actions::TakeFromLeft]      = {{FcitxKey_H, fcitx::KeyState::Ctrl_Alt}};
     share.key_config[Actions::TakeFromRight]     = {{FcitxKey_L, fcitx::KeyState::Ctrl_Alt}};
     share.key_config[Actions::ConvertKatakana]   = {{FcitxKey_q}}; // not Q
-}
-
-Engine::~Engine() {
-    if(enable_history) {
-        finish_dictionary_updater = true;
-        dictionary_update_event.notify();
-        dictionary_updater.join();
-        save_hisotry();
-    }
 }
 } // namespace mikan::engine

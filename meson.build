@@ -12,7 +12,7 @@ shared_module('mikan',
     'src/misc.cpp',
     'src/romaji-index.cpp',
     'src/spawn/process.cpp',
-    'src/word-candidates.cpp',
+    'src/word.cpp',
   ),
   dependencies : [
     dependency('Fcitx5Core'),

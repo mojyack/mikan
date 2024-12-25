@@ -30,7 +30,7 @@ auto Context::is_empty() const -> bool {
 
 auto Context::get_current_chain() -> WordChain& {
     ASSERT(!is_empty());
-    return chains[chains.get_index()];
+    return chains[chains.index];
 }
 
 auto Context::get_current_chain() const -> const WordChain& {
@@ -38,8 +38,7 @@ auto Context::get_current_chain() const -> const WordChain& {
 }
 
 auto Context::commit_word(const Word& word) -> void {
-    const auto& translated = word.get_translated();
-    context.commitString(translated.get_feature());
+    context.commitString(word.feature());
 }
 
 auto Context::commit_wordchain() -> void {
@@ -62,11 +61,6 @@ auto Context::merge_branch_chains() -> bool {
     if(is_empty()) {
         return false;
     }
-    if(chains.get_index() != 0) {
-        // if chains.index != 0, it means user fixed translation manually.
-        // so we have to check the differences between chains[0] and *chain.
-        engine.request_fix_dictionary(get_current_chain());
-    }
     if(translation_changed) {
         shrink_chains();
         translation_changed = false;
@@ -83,7 +77,7 @@ auto Context::shrink_chains(const bool reserve_one) -> void {
     auto& current = get_current_chain();
     if(reserve_one) {
         chains.reset({current, current});
-        chains.set_index(1);
+        chains.set_index_wrapped(1);
     } else {
         chains.reset({current});
     }
@@ -105,7 +99,7 @@ auto Context::translate_wordchain(const WordChain& source, const bool best_only)
     if(is_empty()) {
         return WordChains();
     }
-    return engine.translate_wordchain(source, best_only);
+    return engine.convert_wordchain(source, best_only);
 }
 
 auto Context::build_preedit_text() const -> fcitx::Text {
@@ -126,14 +120,14 @@ auto Context::build_preedit_text() const -> fcitx::Text {
         auto format = fcitx::TextFormatFlag();
         if(i == cursor) {
             if(!to_kana.empty()) {
-                text   = word.get_raw().get_feature() + to_kana;
+                text   = word.raw() + to_kana;
                 format = fcitx::TextFormatFlag::Underline;
             } else {
-                text   = word.get_translated().get_feature();
+                text   = word.feature();
                 format = fcitx::TextFormatFlag::Bold;
             }
         } else {
-            text   = word.get_translated().get_feature();
+            text   = word.feature();
             format = fcitx::TextFormatFlag::Underline;
         }
         const auto insert_space = share.insert_space == InsertSpaceOptions::On || (share.insert_space == InsertSpaceOptions::Smart && (!is_current_last || has_branches));
@@ -160,7 +154,7 @@ auto Context::build_kana_text() const -> std::string {
 
     auto text = std::string();
     for(const auto& word : chain) {
-        text += word.get_raw().get_feature();
+        text += word.raw();
         const auto last = &word + 1 == &get_current_chain().back();
         if(share.insert_space != InsertSpaceOptions::Off && !last) {
             text += " ";
@@ -193,9 +187,9 @@ auto Context::auto_commit() -> void {
     auto       commited   = false;
     for(auto i = size_t(0); i <= commit_num; i += 1) {
         // we have to ensure that the following word's translations will remain the same without this word
-        if(chain[on_holds].get_protection_level() != ProtectionLevel::PreserveTranslation) {
+        if(chain[on_holds].protection != ProtectionLevel::PreserveTranslation) {
             auto copy = translate_wordchain(std::vector<Word>(chain.begin() + on_holds + 1, chain.end()), true)[0];
-            if(copy[0].get_translated().get_feature() != chain[on_holds + 1].get_translated().get_feature()) {
+            if(copy[0].feature() != chain[on_holds + 1].feature()) {
                 // translation result will be changed
                 // but maybe we can commit this word with next one
                 on_holds += 1;
@@ -244,21 +238,37 @@ auto Context::handle_key_event(fcitx::KeyEvent& event) -> void {
 
         // get candidate list
         auto& word = chain[cursor];
-        if(!word.is_candidates_initialized()) {
+        if(!word.has_candidates()) {
             auto dic  = share.primary_vocabulary;
             auto dics = std::vector<MeCabModel*>{dic.get()};
             for(auto& dic : share.additional_vocabularies) {
                 dics.emplace_back(dic.get());
             }
-            word.reset_candidates(WordCandidates(dics, word.get_candidates()));
-            word.set_protection_level(ProtectionLevel::PreserveTranslation);
+
+            auto new_word = Word::from_dictionaries(dics, word);
+
+            const auto insert_candidate = [&new_word](const size_t pos, const std::string& str) {
+                auto& arr = new_word.candidates;
+                if(const auto iter = std::ranges::find(arr, str); iter == arr.end()) {
+                    arr.erase(iter);
+                }
+                arr.insert(arr.begin() + pos, std::string(str));
+            };
+            // insert current feature to top
+            insert_candidate(2, word.feature());
+            // then hiragana
+            if(word.raw() != word.feature()) {
+                insert_candidate(3, word.raw());
+            }
+            new_word.protection = ProtectionLevel::PreserveTranslation;
+            word                = std::move(new_word);
         }
         if(!word.has_candidates()) {
             goto end;
         }
 
-        if(!is_candidate_list_for(context, &word.get_candidates())) {
-            context.inputPanel().setCandidateList(std::make_unique<CandidateList>(&word.get_candidates(), share.candidate_page_size));
+        if(!is_candidate_list_for(context, &word)) {
+            context.inputPanel().setCandidateList(std::make_unique<CandidateList>(&word, share.candidate_page_size));
         }
         auto candidate_list = context.inputPanel().candidateList().get();
 
@@ -300,11 +310,12 @@ auto Context::handle_key_event(fcitx::KeyEvent& event) -> void {
 
         auto& word = chain.back();
 
-        auto       u32  = u8tou32(word.get_raw().get_feature());
+        auto       u32  = u8tou32(word.raw());
         const auto back = u32.back();
         u32.pop_back();
         // delete character from the word
-        word.get_mutable_feature() = u32tou8(u32);
+        word.raw()      = u32tou8(u32);
+        word.protection = ProtectionLevel::None;
 
         // try to disassemble the kana character into romaji
         auto kana8 = std::array<char, FCITX_UTF8_MAX_LENGTH>();
@@ -315,7 +326,6 @@ auto Context::handle_key_event(fcitx::KeyEvent& event) -> void {
         }
 
         // translate
-        word.set_protection_level(ProtectionLevel::None);
         chain  = translate_wordchain(chain, true)[0];
         cursor = chain.size() - 1;
 
@@ -355,8 +365,8 @@ auto Context::handle_key_event(fcitx::KeyEvent& event) -> void {
             candidate_list->toCursorMovable()->prevCandidate();
         }
         context.updateUserInterface(fcitx::UserInterfaceComponent::InputPanel);
-        for(auto& p : get_current_chain()) {
-            p.set_protection_level(ProtectionLevel::PreserveTranslation);
+        for(auto& word : get_current_chain()) {
+            word.protection = ProtectionLevel::PreserveTranslation;
         }
         goto end;
     } while(0);
@@ -418,7 +428,7 @@ auto Context::handle_key_event(fcitx::KeyEvent& event) -> void {
         auto& chain = get_current_chain();
 
         const auto left   = action == SplitWordLeft;
-        const auto raw_32 = u8tou32(chain[cursor].get_raw().get_feature());
+        const auto raw_32 = u8tou32(chain[cursor].raw());
         if(raw_32.size() == 1) {
             // cannot split this anymore
             goto end;
@@ -431,13 +441,14 @@ auto Context::handle_key_event(fcitx::KeyEvent& event) -> void {
         }
 
         // split 'a' into two
-        const auto split_pos    = left ? 1 : raw_32.size() - 1;
-        a.get_mutable_feature() = u32tou8(raw_32.substr(0, split_pos));
-        b.get_mutable_feature() = u32tou8(raw_32.substr(split_pos));
+        const auto split_pos = left ? 1 : raw_32.size() - 1;
+
+        a = Word::from_raw(u32tou8(raw_32.substr(0, split_pos)));
+        b = Word::from_raw(u32tou8(raw_32.substr(split_pos)));
 
         // protect them
-        a.set_protection_level(ProtectionLevel::PreserveSeparation);
-        b.set_protection_level(ProtectionLevel::PreserveSeparation);
+        a.protection = ProtectionLevel::PreserveSeparation;
+        b.protection = ProtectionLevel::PreserveSeparation;
 
         chain         = translate_wordchain(chain, true)[0];
         cursor        = std::min(cursor, chain.size() - 1); // TODO: retrieve correct cursor position
@@ -464,11 +475,11 @@ auto Context::handle_key_event(fcitx::KeyEvent& event) -> void {
             goto end;
         }
 
-        auto& a = chain[cursor].get_raw().get_feature();
-        auto& b = chain[merge_index].get_raw().get_feature();
+        auto& a = chain[cursor].raw();
+        auto& b = chain[merge_index].raw();
         // merge them
-        chain[cursor].get_mutable_feature() = left ? b + a : a + b;
-        chain[cursor].set_protection_level(ProtectionLevel::PreserveSeparation);
+        chain[cursor].raw()      = left ? b + a : a + b;
+        chain[cursor].protection = ProtectionLevel::PreserveSeparation;
         if(left) {
             cursor -= 1;
         }
@@ -501,38 +512,38 @@ auto Context::handle_key_event(fcitx::KeyEvent& event) -> void {
             goto end;
         }
 
-        auto& word           = chain[cursor];
-        auto& target         = chain[target_index];
-        auto  word_feature   = u8tou32(word.get_raw().get_feature());
-        auto  target_feature = u8tou32(target.get_raw().get_feature());
-        if((take && target_feature.size() == 1) || (!take && word_feature.size() == 1)) {
+        auto& word         = chain[cursor];
+        auto& target       = chain[target_index];
+        auto  word_feature = u8tou32(word.raw());
+        auto  tarfeature   = u8tou32(target.raw());
+        if((take && tarfeature.size() == 1) || (!take && word_feature.size() == 1)) {
             goto end;
         }
         switch(*action) {
         case TakeFromLeft:
-            word_feature = target_feature.back() + word_feature;
-            target_feature.pop_back();
+            word_feature = tarfeature.back() + word_feature;
+            tarfeature.pop_back();
             break;
         case TakeFromRight:
-            word_feature = word_feature + target_feature.front();
-            target_feature.erase(target_feature.begin());
+            word_feature = word_feature + tarfeature.front();
+            tarfeature.erase(tarfeature.begin());
             break;
         case GiveToLeft:
-            target_feature = target_feature + word_feature.front();
+            tarfeature = tarfeature + word_feature.front();
             word_feature.erase(word_feature.begin());
             break;
         case GiveToRight:
-            target_feature = word_feature.back() + target_feature;
+            tarfeature = word_feature.back() + tarfeature;
             word_feature.pop_back();
             break;
         default:
             break;
         }
-        word.get_mutable_feature()   = u32tou8(word_feature);
-        target.get_mutable_feature() = u32tou8(target_feature);
+        word.raw()        = u32tou8(word_feature);
+        target.raw()      = u32tou8(tarfeature);
+        word.protection   = ProtectionLevel::PreserveSeparation;
+        target.protection = ProtectionLevel::PreserveSeparation;
 
-        word.set_protection_level(ProtectionLevel::PreserveSeparation);
-        target.set_protection_level(ProtectionLevel::PreserveSeparation);
         chain         = translate_wordchain(chain, true)[0];
         cursor        = std::min(cursor, chain.size() - 1); // TODO: retrieve correct cursor position
         chain_changed = true;
@@ -553,42 +564,18 @@ auto Context::handle_key_event(fcitx::KeyEvent& event) -> void {
 
         auto& word = chain[cursor];
 
-        auto        katakana32 = std::u32string();
-        const auto& raw        = word.get_raw().get_feature();
-        for(const auto c : u8tou32(raw)) {
+        auto katakana32 = std::u32string();
+        for(const auto c : u8tou32(word.raw())) {
             if(const auto p = hiragana_katakana_table.find(c); p != hiragana_katakana_table.end()) {
                 katakana32 += p->second;
             } else {
                 katakana32 += c;
             }
         }
-        const auto katakana = u32tou8(katakana32);
-        {
-            // try to get word information(if exists in dictionary)
-            auto  dic     = share.primary_vocabulary;
-            auto& lattice = *dic->lattice;
-            lattice.set_request_type(MECAB_ONE_BEST);
-            lattice.set_sentence(raw.data());
-            lattice.set_feature_constraint(0, raw.size(), katakana.data());
-            dic->tagger->parse(&lattice);
-            auto found = false;
-            for(const auto* node = lattice.bos_node(); node; node = node->next) {
-                if(node->stat == MECAB_BOS_NODE || node->stat == MECAB_EOS_NODE) {
-                    continue;
-                }
-                if(node->stat == MECAB_NOR_NODE) {
-                    found = true;
-                    word  = Word(MeCabWord(raw), MeCabWord(katakana, node->rcAttr, node->lcAttr, node->wcost, node->cost, true));
-                    break;
-                }
-            }
-            lattice.clear();
-            if(!found) {
-                word.override_translated(MeCabWord(katakana));
-            }
-        }
+        word.candidates.resize(2);
+        word.candidates[1] = u32tou8(katakana32);
+        word.protection    = ProtectionLevel::PreserveTranslation;
 
-        word.set_protection_level(ProtectionLevel::PreserveTranslation);
         apply_candidates();
         goto end;
     } while(0);
@@ -618,17 +605,19 @@ auto Context::handle_key_event(fcitx::KeyEvent& event) -> void {
 
         apply_candidates();
         delete_surrounding_text();
-        if(const auto data = filter_result.get<RomajiIndex::ExactOne>()) {
-            const auto& exact = *data->result;
+        if(auto data = filter_result.get<RomajiIndex::ExactOne>()) {
+            auto& exact = *data->result;
             if(is_empty()) {
-                chains.reset({WordChain{Word{exact.kana}}});
+                auto word = Word::from_raw(std::move(exact.kana));
+                chains.reset({WordChain{word}});
             } else {
                 auto& chain = get_current_chain();
                 auto  word  = &chain.back();
-                if(word->get_protection_level() != ProtectionLevel::None) {
-                    word = &get_current_chain().emplace_back();
+                // is the last word is not modifiable, we have to append new one
+                if(word->protection != ProtectionLevel::None) {
+                    word = &chain.emplace_back();
                 }
-                word->get_mutable_feature() += exact.kana;
+                word->raw() += exact.kana;
                 chain_changed = true;
             }
 

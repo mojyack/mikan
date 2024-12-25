@@ -75,7 +75,7 @@ class CandidateList : public CandidateListBase,
     }
 
     auto cursorIndex() const -> int override {
-        return index_to_local(candidates->get_index());
+        return index_to_local(candidates->index);
     }
 
     auto size() const -> int override {
@@ -95,17 +95,17 @@ class CandidateList : public CandidateListBase,
 
     auto prev() -> void override {
         if(hasPrev()) {
-            candidates->set_index((currentPage() - 1) * page_size);
+            candidates->set_index_wrapped((currentPage() - 1) * page_size);
         } else {
-            candidates->set_index((totalPages() - 1) * page_size);
+            candidates->set_index_wrapped((totalPages() - 1) * page_size);
         }
     }
 
     auto next() -> void override {
         if(hasNext()) {
-            candidates->set_index((currentPage() + 1) * page_size);
+            candidates->set_index_wrapped((currentPage() + 1) * page_size);
         } else {
-            candidates->set_index(0);
+            candidates->set_index_wrapped(0);
         }
     }
 
@@ -119,20 +119,24 @@ class CandidateList : public CandidateListBase,
     }
 
     auto currentPage() const -> int override {
-        return candidates->get_index() / page_size;
+        return candidates->index / page_size;
     }
 
     auto setPage(int page) -> void override {
-        candidates->set_index(page * page_size);
+        candidates->set_index_wrapped(page * page_size);
     }
 
     // CursorMovableCandidateList
     auto prevCandidate() -> void override {
-        candidates->move_index(-1);
+        if(candidates->index == 0) {
+            candidates->index = candidates->get_data_size() - 1;
+        } else {
+            candidates->index -= 1;
+        }
     }
 
     auto nextCandidate() -> void override {
-        candidates->move_index(1);
+        candidates->set_index_wrapped(candidates->index + 1);
     }
 
     CandidateList(Candidates* const candidates, size_t page_size)

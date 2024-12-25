@@ -2,21 +2,11 @@
 #include <fcitx/candidatelist.h>
 
 namespace mikan {
-class Candidates {
-  protected:
-    uint64_t index; // TODO: size_t
+struct Candidates {
+    size_t index = 0;
 
-  public:
-    auto move_index(const int val) -> void {
-        index = (index + val) % get_data_size();
-    }
-
-    auto set_index(const uint64_t val) -> void {
+    auto set_index_wrapped(const size_t val) -> void {
         index = val % get_data_size();
-    }
-
-    auto get_index() const -> uint64_t {
-        return index;
     }
 
     virtual auto get_data_size() const -> size_t                = 0;

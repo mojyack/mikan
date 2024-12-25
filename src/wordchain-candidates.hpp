@@ -20,7 +20,7 @@ class WordChainCandidates : public Candidates {
         for(auto& s : data) {
             auto& label = labels.emplace_back();
             for(auto& p : s) {
-                label += p.get_translated().get_feature();
+                label += p.feature();
             }
         }
         return labels;
