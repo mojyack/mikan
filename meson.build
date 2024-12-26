@@ -5,6 +5,7 @@ cpp = meson.get_compiler('cpp')
 
 shared_module('mikan',
   files(
+    'src/command.cpp',
     'src/context.cpp',
     'src/engine.cpp',
     'src/lib.cpp',

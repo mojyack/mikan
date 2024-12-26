@@ -3,7 +3,6 @@
 
 #include "candidates.hpp"
 #include "mecab-model.hpp"
-#include "mecab-word.hpp"
 
 namespace mikan {
 enum class ProtectionLevel {

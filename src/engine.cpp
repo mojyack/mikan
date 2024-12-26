@@ -1,4 +1,3 @@
-#include <algorithm>
 #include <array>
 #include <filesystem>
 #include <fstream>
@@ -7,7 +6,6 @@
 #include "engine.hpp"
 #include "macros/unwrap.hpp"
 #include "misc.hpp"
-#include "tmp.hpp"
 #include "util/charconv.hpp"
 #include "util/split.hpp"
 #include "util/string-map.hpp"
@@ -24,32 +22,6 @@ using StringSet = std::unordered_set<std::string, internal::StringHash, std::ran
 
 namespace mikan::engine {
 namespace {
-auto parse_line_to_history(const std::string_view line) -> std::optional<History> {
-    const auto elms = split_strip(line, ",");
-    auto       hist = History();
-    if(elms.size() == 2) {
-        hist.raw       = elms[0];
-        hist.converted = MeCabWord(std::string(elms[1]));
-    } else if(elms.size() == 5) {
-        hist.raw = elms[0];
-        unwrap(rattr, from_chars<unsigned short>(elms[1]));
-        unwrap(lattr, from_chars<unsigned short>(elms[2]));
-        unwrap(cost, from_chars<short>(elms[3]));
-        hist.converted = MeCabWord(std::string(elms[4]), WordParameters{rattr, lattr, cost, 0});
-    } else {
-        bail();
-    }
-    return hist;
-}
-
-auto parse_line_to_key_value(const std::string_view line) -> std::pair<std::string_view, std::string_view> {
-    const auto vec = split_strip(line);
-    if(vec.size() != 2) {
-        return {};
-    }
-    return {vec[0], vec[1]};
-}
-
 auto build_raw_and_constraints(const WordChain& chain, const bool ignore_protection) -> std::pair<std::string, std::vector<FeatureConstriant>> {
     auto feature_constriants = std::vector<FeatureConstriant>();
     auto buffer              = std::string();
@@ -59,27 +31,26 @@ auto build_raw_and_constraints(const WordChain& chain, const bool ignore_protect
             auto begin = buffer.size();
             auto end   = begin + raw.size();
             feature_constriants.emplace_back(FeatureConstriant{begin, end, &word});
-        };
+        }
         buffer += raw;
     }
     return std::make_pair(buffer, feature_constriants);
 }
 
-auto load_text_dictionary(const char* const path) -> std::vector<History> {
-    auto res = std::vector<History>();
-    if(!std::filesystem::is_regular_file(path)) {
-        return res;
-    }
+auto load_text_dictionary(const char* const path, std::vector<ConvDef>& defs) -> bool {
+    ensure(std::filesystem::is_regular_file(path), "not a file ", path);
     auto source = std::fstream(path);
-    auto l      = std::string();
-    while(std::getline(source, l)) {
-        const auto hist = parse_line_to_history(l);
-        if(!hist.has_value()) {
+    auto line   = std::string();
+    while(std::getline(source, line)) {
+        const auto elms = split_strip(line, ",");
+        auto       def  = ConvDef();
+        if(elms.size() != 2) {
+            WARN("failed to parse line \"", line, "\" of file ", path);
             continue;
         }
-        res.emplace_back(hist.value());
+        defs.emplace_back(ConvDef{std::string(elms[0]), std::string(elms[1])});
     }
-    return res;
+    return true;
 }
 
 auto set_constraints(MeCab::Lattice& lattice, const std::vector<FeatureConstriant>& constraints) -> void {
@@ -106,143 +77,104 @@ auto parse_nodes(MeCab::Lattice& lattice, const bool needs_parsed_feature) -> st
 }
 } // namespace
 
+auto Engine::parse_configuration_line(const std::string_view line) -> bool {
+    if(line.empty() || line[0] == '#') {
+        return true;
+    }
+    const auto elms = split_strip(line);
+    ensure(elms.size() == 2);
+
+    const auto key   = elms[0];
+    const auto value = elms[1];
+
+    if(key == "candidate_page_size") {
+        unwrap(num, from_chars<int>(value));
+        share.candidate_page_size = num;
+    } else if(key == "auto_commit_threshold") {
+        unwrap(num, from_chars<int>(value));
+        share.auto_commit_threshold = num;
+    } else if(key == "dictionary") {
+        emplace_unique(user_dictionary_paths, get_user_config_dir() + "/" + std::string(value));
+    } else if(key == "insert_space") {
+        if(value == "on") {
+            share.insert_space = InsertSpaceOptions::On;
+        } else if(value == "off") {
+            share.insert_space = InsertSpaceOptions::Off;
+        } else if(value == "smart") {
+            share.insert_space = InsertSpaceOptions::Smart;
+        } else {
+            bail("invalid insert_space value ", value);
+        }
+    } else if(key == "dictionaries") {
+        share.dictionary_path = value;
+    } else {
+        bail("unknown config name ", key);
+    }
+    return true;
+}
+
 auto Engine::load_configuration() -> bool {
     const auto user_config_dir = get_user_config_dir();
     ensure(std::filesystem::is_directory(user_config_dir) || std::filesystem::create_directories(user_config_dir));
     auto config = std::fstream(user_config_dir + "/mikan.conf");
     auto line   = std::string();
     while(std::getline(config, line)) {
-        if(line.empty() || line[0] == '#') {
-            continue;
-        }
-
-        auto [key, value] = parse_line_to_key_value(line);
-        if(key.empty()) {
-            continue;
-        }
-
-        auto error = false;
-        if(key == "candidate_page_size") {
-            try {
-                share.candidate_page_size = std::stoi(std::string(value));
-            } catch(const std::invalid_argument&) {
-                error = true;
-            }
-        } else if(key == "auto_commit_threshold") {
-            try {
-                share.auto_commit_threshold = std::stoi(std::string(value));
-            } catch(const std::invalid_argument&) {
-                error = true;
-            }
-        } else if(key == "dictionary") {
-            emplace_unique(user_dictionary_paths, user_config_dir + "/" + std::string(value));
-        } else if(key == "insert_space") {
-            if(value == "on") {
-                share.insert_space = InsertSpaceOptions::On;
-            } else if(value == "off") {
-                share.insert_space = InsertSpaceOptions::Off;
-            } else if(value == "smart") {
-                share.insert_space = InsertSpaceOptions::Smart;
-            } else {
-                error = true;
-            }
-        } else if(key == "dictionaries") {
-            share.dictionary_path = value;
-        } else {
-            error = true;
-        }
-        if(error) {
-            FCITX_WARN() << "error while parsing configuration: " << line;
+        if(!parse_configuration_line(line)) {
+            WARN("failed to process configuration ", line);
         }
     }
     return true;
 }
 
-auto Engine::add_history(const History& word) -> bool {
-    auto have_new_word    = true;
-    auto cost_not_changed = true;
-    auto duplicates       = size_t(0);
-    for(auto& hist : histories) {
-        auto& lword = hist.converted;
-        auto& rword = word.converted;
-        if(hist.raw != word.raw || lword.params != lword.params) {
-            continue;
-        }
-        if(lword.feature == rword.feature) {
-            if(lword.params->word_cost != rword.params->word_cost) {
-                lword.params->word_cost = rword.params->word_cost;
-                cost_not_changed        = false;
-            }
-            have_new_word = false;
-            break;
-        } else {
-            duplicates += 1;
-        }
+auto Engine::merge_dictionaries(const char* const path) const -> bool {
+    auto to_compile = std::vector<ConvDef>();
+
+    const auto defines_path = get_user_cache_dir() + "/defines.txt";
+    if(std::filesystem::is_regular_file(defines_path)) {
+        load_text_dictionary(defines_path.data(), to_compile);
     }
 
-    if(have_new_word) {
-        histories.emplace_back(word);
-        if(duplicates != 0) {
-            auto& w = histories.back().converted;
-            w.params->word_cost -= duplicates;
-        }
-    }
-    return have_new_word || !cost_not_changed;
-}
-
-auto Engine::save_hisotry() const -> void {
-    auto file = std::ofstream(history_file_path);
-    for(const auto& hist : histories) {
-        auto line = std::string();
-        line += hist.raw + ",";
-        const auto& word = hist.converted;
-        if(word.params) {
-            line += std::to_string(word.params->cattr_left) + ",";
-            line += std::to_string(word.params->cattr_right) + ",";
-            line += std::to_string(word.params->word_cost) + ",";
-        }
-        line += word.feature;
-        file << line << std::endl;
-    }
-}
-
-auto Engine::dump_internal_dict(const char* const path) const -> void {
-    auto to_compile = std::vector<History>();
     for(const auto& dict : user_dictionary_paths) {
-        auto hists = load_text_dictionary(dict.data());
-        std::copy(hists.begin(), hists.end(), std::back_inserter(to_compile));
+        load_text_dictionary(dict.data(), to_compile);
     }
-    std::copy(histories.begin(), histories.end(), std::back_inserter(to_compile));
+
     auto file = std::ofstream(path);
-    for(const auto& hist : to_compile) {
-        const auto& word   = hist.converted;
-        const auto  params = word.params ? *word.params : WordParameters();
-        file << build_string(hist.raw, ",", params.cattr_left, ",", params.cattr_right, ",", params.word_cost, ",", word.feature) << std::endl;
+    for(const auto& def : to_compile) {
+        file << def.raw << ",0,0,0," << def.converted << std::endl;
     }
+    return true;
 }
 
-auto Engine::compile_and_reload_user_dictionary() -> void {
-    auto       tmp = TemporaryDirectory();
-    const auto csv = tmp.str() + "/dict.csv";
-    const auto bin = tmp.str() + "/dict.bin";
-    dump_internal_dict(csv.data());
+auto Engine::compile_and_reload_user_dictionary() -> bool {
+    const auto tmpdir = build_string("/tmp/mikan-", getpid());
+    std::filesystem::create_directories(tmpdir);
+
+    const auto csv_path = tmpdir + "/dict.csv";
+    const auto bin_path = tmpdir + "/dict.bin";
+    merge_dictionaries(csv_path.data());
 
     auto command = std::string();
     command += dictionary_compiler_path;
     command += " -d ";
     command += system_dictionary_path;
     command += " -u ";
-    command += bin;
+    command += bin_path;
     command += " -f utf-8 -t utf-8 ";
-    command += csv;
+    command += csv_path;
     command += " >& /dev/null";
-    [[maybe_unused]] auto code = system(command.data());
+    const auto code = system(command.data());
 
-    reload_dictionary(bin.data());
+    reload_dictionary(bin_path.data());
+
+    std::filesystem::remove_all(tmpdir);
+
+    ensure(code == 0);
+    return true;
 }
 
-auto Engine::reload_dictionary(const char* const user_dict) -> void {
+auto Engine::reload_dictionary(const char* const user_dict) -> bool {
     share.primary_vocabulary = std::make_shared<MeCabModel>(system_dictionary_path.data(), user_dict, true);
+    return true;
 }
 
 auto Engine::convert_wordchain(const WordChain& source, const bool best_only, const bool ignore_protection) const -> WordChains {
@@ -300,6 +232,38 @@ auto Engine::convert_wordchain(const WordChain& source, const bool best_only, co
     return result;
 }
 
+auto Engine::add_convert_definition(const std::string_view raw, const std::string_view converted) -> bool {
+    const auto cachedir = get_user_cache_dir();
+    ensure(std::filesystem::is_directory(cachedir) || std::filesystem::create_directories(get_user_cache_dir()));
+    const auto path = cachedir + "/defines.txt";
+
+    auto file = std::ofstream(path, std::ios_base::app);
+    file << raw << "," << converted << std::endl;
+
+    ensure(compile_and_reload_user_dictionary());
+    return true;
+}
+
+auto Engine::remove_convert_definition(const std::string_view raw) -> bool {
+    const auto path = get_user_cache_dir() + "/defines.txt";
+
+    auto defs = std::vector<ConvDef>();
+    ensure(load_text_dictionary(path.data(), defs));
+
+    auto file  = std::ofstream(path, std::ios_base::out);
+    auto count = 0;
+    for(auto i = defs.begin(); i < defs.end(); i += 1) {
+        if(i->raw == raw) {
+            count += 1;
+            continue;
+        }
+        file << i->raw << "," << i->converted << std::endl;
+    }
+    ensure(count > 0, "no definitions matched");
+    ensure(compile_and_reload_user_dictionary());
+    return true;
+}
+
 Engine::Engine(Share& share)
     : share(share) {
     ASSERT(load_configuration(), "failed to load configuration");
@@ -347,5 +311,7 @@ Engine::Engine(Share& share)
     share.key_config[Actions::TakeFromLeft]      = {{FcitxKey_H, fcitx::KeyState::Ctrl_Alt}};
     share.key_config[Actions::TakeFromRight]     = {{FcitxKey_L, fcitx::KeyState::Ctrl_Alt}};
     share.key_config[Actions::ConvertKatakana]   = {{FcitxKey_q}}; // not Q
+    share.key_config[Actions::EnterCommandMode]  = {{FcitxKey_slash}};
+    share.key_config[Actions::ExitCommandMode]   = {{FcitxKey_Escape}};
 }
 } // namespace mikan::engine

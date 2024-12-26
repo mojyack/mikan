@@ -3,6 +3,8 @@
 #include <string>
 #include <vector>
 
+#include <fcitx/event.h>
+
 namespace mikan {
 auto get_user_config_dir() -> std::string;
 auto get_user_cache_dir() -> std::string;
@@ -11,7 +13,8 @@ auto u8tou32(std::string_view u8) -> std::u32string;
 auto u32tou8(std::u32string_view u32) -> std::string;
 auto u32tou8(char32_t u32) -> std::string;
 auto kana_to_romaji(std::string_view kana) -> std::optional<std::string>;
-auto pop_back_u8(std::string& u8) -> void;
+auto pop_back_u8(std::string& u8) -> char32_t;
+auto press_event_to_single_char(const fcitx::KeyEvent& event) -> std::optional<char>;
 
 template <typename T, typename E>
 auto contains(const T& vec, const E& elm) -> bool {

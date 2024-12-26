@@ -35,11 +35,14 @@ class Factory final : public fcitx::InputMethodEngine {
         event.accept();
         reset(entry, event);
     }
-
-    Factory(fcitx::Instance* const instance) : engine(share),
-                                               factory([this](fcitx::InputContext& context) {
-                                                   return new Context(context, engine, share);
-                                               }) {
+    // FCITX_ADDON_DEPENDENCY_LOADER(clipboard, a);
+    Factory(fcitx::Instance* const instance)
+        : engine(share),
+          factory([this](fcitx::InputContext& context) {
+              return new Context(context, engine, share);
+          }) {
+        share.instance  = instance;
+        share.clipboard = instance->addonManager().addon("clipboard", true);
         instance->inputContextManager().registerProperty("mikan", &factory);
     }
 };

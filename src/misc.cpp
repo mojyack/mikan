@@ -1,11 +1,9 @@
 #include <array>
-#include <optional>
-#include <string>
-#include <vector>
 
 #include <fcitx-utils/utf8.h>
 
 #include "macros/unwrap.hpp"
+#include "misc.hpp"
 #include "romaji-table.hpp"
 #include "spawn/process.hpp"
 
@@ -91,9 +89,23 @@ auto kana_to_romaji(const std::string_view kana) -> std::optional<std::string> {
     return {};
 }
 
-auto pop_back_u8(std::string& u8) -> void {
+auto pop_back_u8(std::string& u8) -> char32_t {
     auto u32 = u8tou32(u8);
+    const auto ret = u32.back();
     u32.pop_back();
     u8 = u32tou8(u32);
+    return ret;
+}
+
+auto press_event_to_single_char(const fcitx::KeyEvent& event) -> std::optional<char> {
+    const auto key = event.key();
+    if(event.isRelease() || (key.states() != fcitx::KeyState::NoState && key.states() != fcitx::KeyState::Shift)) {
+        return {};
+    }
+    const auto chars = fcitx::Key::keySymToUTF8(key.sym());
+    if(chars.size() != 1) {
+        return {};
+    }
+    return chars[0];
 }
 } // namespace mikan

@@ -24,6 +24,8 @@ enum class Actions : size_t {
     GiveToLeft,
     GiveToRight,
     ConvertKatakana,
+    EnterCommandMode,
+    ExitCommandMode,
     ActionsLimit,
 };
 

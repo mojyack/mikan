@@ -1,4 +1,6 @@
 #pragma once
+#include <fcitx/instance.h>
+
 #include "configuration.hpp"
 #include "mecab-model.hpp"
 
@@ -10,8 +12,9 @@ enum class InsertSpaceOptions {
     Smart,
 };
 
-class Share {
-  public:
+struct Share {
+    fcitx::Instance*                         instance                = nullptr;
+    fcitx::AddonInstance*                    clipboard               = nullptr;
     size_t                                   auto_commit_threshold   = 8;
     std::string                              dictionary_path         = "/usr/share/mikan-im/dic";
     int                                      candidate_page_size     = 10;

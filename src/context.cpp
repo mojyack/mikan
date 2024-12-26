@@ -83,18 +83,6 @@ auto Context::shrink_chains(const bool reserve_one) -> void {
     }
 }
 
-auto Context::delete_surrounding_text() -> bool {
-    if(!is_empty() || !to_kana.empty() || !context.capabilityFlags().test(fcitx::CapabilityFlag::SurroundingText)) {
-        return false;
-    }
-    const auto& text = context.surroundingText();
-    if(!text.isValid()) {
-        return false;
-    }
-    context.deleteSurroundingText(0, text.anchor() - text.cursor());
-    return true;
-}
-
 auto Context::translate_wordchain(const WordChain& source, const bool best_only) -> WordChains {
     if(is_empty()) {
         return WordChains();
@@ -217,10 +205,25 @@ auto Context::reset() -> void {
     chain_changed = true;
 }
 
-auto Context::handle_key_event(fcitx::KeyEvent& event) -> void {
+auto Context::handle_key_event_normal(fcitx::KeyEvent& event) -> void {
     using enum Actions;
     auto& panel  = context.inputPanel();
     auto  accept = true;
+
+    // handle enter command mode
+    do {
+        if(!share.key_config.match(EnterCommandMode, event)) {
+            break;
+        }
+        // do not enter to command mode while typing
+        if(!is_empty() || !to_kana.empty()) {
+            break;
+        }
+        command_mode_context.emplace();
+        handle_key_event_command(event);
+        return;
+    } while(0);
+
     // handle candidates
     do {
         const auto action = share.key_config.match({CandidateNext, CandidatePrev, CandidatePageNext, CandidatePagePrev}, event);
@@ -310,11 +313,8 @@ auto Context::handle_key_event(fcitx::KeyEvent& event) -> void {
 
         auto& word = chain.back();
 
-        auto       u32  = u8tou32(word.raw());
-        const auto back = u32.back();
-        u32.pop_back();
         // delete character from the word
-        word.raw()      = u32tou8(u32);
+        const auto back = pop_back_u8(word.raw());
         word.protection = ProtectionLevel::None;
 
         // try to disassemble the kana character into romaji
@@ -582,20 +582,16 @@ auto Context::handle_key_event(fcitx::KeyEvent& event) -> void {
 
     // handle romaji
     do {
-        const auto key = event.key();
-        if(event.isRelease() || (key.states() != fcitx::KeyState::NoState && key.states() != fcitx::KeyState::Shift)) {
-            break;
-        }
-        const auto romaji_8 = fcitx::Key::keySymToUTF8(key.sym());
-        if(fcitx_utf8_strlen(romaji_8.data()) != 1) {
+        const auto c8 = press_event_to_single_char(event);
+        if(!c8) {
             break;
         }
         merge_branch_chains();
 
-        to_kana += romaji_8;
+        to_kana += *c8;
         auto filter_result = romaji_index.filter(to_kana);
         if(filter_result.get<RomajiIndex::EmptyCache>()) {
-            to_kana       = romaji_8;
+            to_kana       = *c8;
             filter_result = romaji_index.filter(to_kana);
             if(filter_result.get<RomajiIndex::EmptyCache>()) {
                 to_kana.clear();
@@ -604,7 +600,6 @@ auto Context::handle_key_event(fcitx::KeyEvent& event) -> void {
         }
 
         apply_candidates();
-        delete_surrounding_text();
         if(auto data = filter_result.get<RomajiIndex::ExactOne>()) {
             auto& exact = *data->result;
             if(is_empty()) {
@@ -664,11 +659,7 @@ end:
     return;
 }
 
-auto Context::handle_activate() -> void {
-    context.setCapabilityFlags(context.capabilityFlags() |= fcitx::CapabilityFlag::ClientUnfocusCommit);
-}
-
-auto Context::handle_deactivate() -> void {
+auto Context::handle_deactivate_normal() -> void {
     apply_candidates();
     context.inputPanel().reset();
     context.updatePreedit();
@@ -681,6 +672,18 @@ auto Context::handle_deactivate() -> void {
         context.commitString(to_kana);
         to_kana.clear();
     }
+}
+
+auto Context::handle_key_event(fcitx::KeyEvent& event) -> void {
+    return command_mode_context ? handle_key_event_command(event) : handle_key_event_normal(event);
+}
+
+auto Context::handle_activate() -> void {
+    context.setCapabilityFlags(context.capabilityFlags() |= fcitx::CapabilityFlag::ClientUnfocusCommit);
+}
+
+auto Context::handle_deactivate() -> void {
+    return command_mode_context ? handle_deactivate_command() : handle_deactivate_normal();
 }
 
 Context::Context(fcitx::InputContext& context, engine::Engine& engine, Share& share)
