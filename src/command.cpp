@@ -105,7 +105,7 @@ struct DefCommand : KanaArgumentCommand {
 
     auto init() -> bool override {
         unwrap_mut(clipboard, ctx->share.clipboard, "no clipboard plugin");
-        converted = clipboard.call<fcitx::IClipboard::primary>(&ctx->context);
+        converted = fcitx::stringutils::replaceAll(clipboard.call<fcitx::IClipboard::primary>(&ctx->context), "\n", "");
         if(converted.empty()) {
             show_message("clipboard is empty");
             return false;
