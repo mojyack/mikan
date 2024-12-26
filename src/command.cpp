@@ -201,6 +201,9 @@ auto Context::handle_key_event_command(fcitx::KeyEvent& event) -> void {
         if(!ctx.command.empty()) {
             pop_back_u8(ctx.command);
         }
+        if(ctx.command.empty()) {
+            exit_command_mode();
+        }
         goto end;
     } while(0);
 
