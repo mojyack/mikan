@@ -104,25 +104,21 @@ auto Context::build_preedit_text() const -> fcitx::Text {
     for(auto i = 0u; i < chain.size(); i += 1) {
         const auto& word = chain[i];
 
-        auto text   = std::string();
-        auto format = fcitx::TextFormatFlag();
+        auto text = std::string();
         if(i == cursor) {
             if(!to_kana.empty()) {
-                text   = word.raw() + to_kana;
-                format = fcitx::TextFormatFlag::Underline;
+                text = word.raw() + to_kana;
             } else {
-                text   = word.feature();
-                format = fcitx::TextFormatFlag::Bold;
+                text = word.feature();
             }
         } else {
-            text   = word.feature();
-            format = fcitx::TextFormatFlag::Underline;
+            text = word.feature();
         }
         const auto insert_space = share.insert_space == InsertSpaceOptions::On || (share.insert_space == InsertSpaceOptions::Smart && (!is_current_last || has_branches));
         if(i == cursor && insert_space) {
             text = "[" + text + "]";
         }
-        preedit.append(text, format);
+        preedit.append(text, fcitx::TextFormatFlag::Underline);
         // add space between words
         if(insert_space) {
             preedit.append("|");
