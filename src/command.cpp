@@ -115,8 +115,8 @@ struct DefCommand : KanaArgumentCommand {
     }
 
     auto build_preedit(fcitx::Text& preedit) -> void override {
-        preedit.append(raw);
-        preedit.append(to_kana);
+        preedit.append(raw, fcitx::TextFormatFlag::Underline);
+        preedit.append(to_kana, fcitx::TextFormatFlag::Underline);
         preedit.setCursor(preedit.textLength());
         preedit.append(" = ");
         preedit.append(converted);
@@ -240,7 +240,8 @@ end:
     }
     if(accept) {
         event.filterAndAccept();
-        auto preedit = fcitx::Text("[ " + ctx.command);
+        auto preedit = fcitx::Text("[ ");
+        preedit.append(ctx.command, ctx.handler ? fcitx::TextFormatFlag::NoFlag : fcitx::TextFormatFlag::Underline);
         if(ctx.handler) {
             preedit.append(" ");
             ctx.handler->build_preedit(preedit);
