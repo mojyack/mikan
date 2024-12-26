@@ -400,7 +400,7 @@ auto Context::handle_key_event_normal(fcitx::KeyEvent& event) -> void {
 
         const auto forward    = action == WordNext;
         const auto new_cursor = int(cursor) + (forward ? 1 : -1);
-        if(new_cursor >= chain.size() || new_cursor < 0) {
+        if(new_cursor >= int(chain.size()) || new_cursor < 0) {
             goto end;
         }
 
@@ -467,7 +467,7 @@ auto Context::handle_key_event_normal(fcitx::KeyEvent& event) -> void {
 
         const auto left        = share.key_config.match(MergeWordsLeft, event);
         const auto merge_index = int(cursor) + (left ? -1 : 1);
-        if(merge_index >= chain.size() || merge_index < 0) {
+        if(merge_index >= int(chain.size()) || merge_index < 0) {
             goto end;
         }
 
@@ -504,7 +504,7 @@ auto Context::handle_key_event_normal(fcitx::KeyEvent& event) -> void {
 
         const auto target_index = int(cursor) + (action == TakeFromLeft || action == GiveToLeft ? -1 : 1);
         const auto take         = action == TakeFromLeft || action == TakeFromRight;
-        if(target_index >= chain.size() || target_index < 0) {
+        if(target_index >= int(chain.size()) || target_index < 0) {
             goto end;
         }
 
