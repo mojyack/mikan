@@ -47,3 +47,8 @@ mikan uses vim-inspired keybinds.
 - Space: Start conversion of the whole sentence and select the next sentence candidate
 - Shift+Space: Select previous sentence candidate
 - Return: Commit sentence
+- Slash: Enter to command mode
+
+# Command mode
+Start typing with slash('/') to enter to command mode.
+## TODO: write command usage
