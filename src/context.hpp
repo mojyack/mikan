@@ -25,23 +25,15 @@ class Context final : public fcitx::InputContextProperty {
 
     std::optional<CommandModeContext> command_mode_context;
 
-    bool translation_changed = false;
-    bool chain_changed       = false;
-
-    auto is_empty() const -> bool;
     auto get_current_chain() -> WordChain&;
     auto get_current_chain() const -> const WordChain&;
     auto commit_word(const Word& word) -> void;
     auto commit_wordchain() -> void;
-    auto make_branch_chain() -> void;
-    auto merge_branch_chains() -> bool;
-    auto shrink_chains(bool reserve_one = false) -> void;
     auto translate_wordchain(const WordChain& source, bool best_only) -> WordChains;
     auto build_preedit_text() const -> fcitx::Text;
     auto build_kana_text() const -> std::string;
     auto apply_candidates() -> void;
     auto auto_commit() -> void;
-    auto reset() -> void;
     auto handle_key_event_normal(fcitx::KeyEvent& event) -> void;
     auto handle_deactivate_normal() -> void;
 

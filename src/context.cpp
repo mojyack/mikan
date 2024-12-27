@@ -24,12 +24,8 @@ auto is_candidate_list_for(fcitx::InputContext& context, const Candidates* const
 }
 } // namespace
 
-auto Context::is_empty() const -> bool {
-    return chains.empty();
-}
-
 auto Context::get_current_chain() -> WordChain& {
-    ASSERT(!is_empty());
+    ASSERT(!chains.empty());
     return chains[chains.index];
 }
 
@@ -42,7 +38,7 @@ auto Context::commit_word(const Word& word) -> void {
 }
 
 auto Context::commit_wordchain() -> void {
-    merge_branch_chains();
+    chains.reset({get_current_chain()});
     for(const auto& word : get_current_chain()) {
         commit_word(word);
     }
@@ -50,41 +46,8 @@ auto Context::commit_wordchain() -> void {
     to_kana.clear();
 }
 
-auto Context::make_branch_chain() -> void {
-    if(!translation_changed) {
-        shrink_chains(true);
-        translation_changed = true;
-    }
-}
-
-auto Context::merge_branch_chains() -> bool {
-    if(is_empty()) {
-        return false;
-    }
-    if(translation_changed) {
-        shrink_chains();
-        translation_changed = false;
-        return true;
-    } else {
-        return false;
-    }
-}
-
-auto Context::shrink_chains(const bool reserve_one) -> void {
-    if(is_empty()) {
-        return;
-    }
-    auto& current = get_current_chain();
-    if(reserve_one) {
-        chains.reset({current, current});
-        chains.set_index_wrapped(1);
-    } else {
-        chains.reset({current});
-    }
-}
-
 auto Context::translate_wordchain(const WordChain& source, const bool best_only) -> WordChains {
-    if(is_empty()) {
+    if(chains.empty()) {
         return WordChains();
     }
     return engine.convert_wordchain(source, best_only);
@@ -92,7 +55,7 @@ auto Context::translate_wordchain(const WordChain& source, const bool best_only)
 
 auto Context::build_preedit_text() const -> fcitx::Text {
     auto preedit = fcitx::Text();
-    if(is_empty()) {
+    if(chains.empty()) {
         preedit.append(to_kana, fcitx::TextFormatFlag::Underline);
         preedit.setCursor(to_kana.size());
         return preedit;
@@ -131,7 +94,7 @@ auto Context::build_preedit_text() const -> fcitx::Text {
 }
 
 auto Context::build_kana_text() const -> std::string {
-    if(is_empty()) {
+    if(chains.empty()) {
         return to_kana;
     }
     const auto& chain = get_current_chain();
@@ -159,7 +122,7 @@ auto Context::apply_candidates() -> void {
 }
 
 auto Context::auto_commit() -> void {
-    if(is_empty()) {
+    if(chains.empty()) {
         return;
     }
     auto& chain = get_current_chain();
@@ -192,13 +155,7 @@ auto Context::auto_commit() -> void {
     }
     if(commited) {
         apply_candidates();
-        chain_changed = true;
     }
-}
-
-auto Context::reset() -> void {
-    chains.clear();
-    chain_changed = true;
 }
 
 auto Context::handle_key_event_normal(fcitx::KeyEvent& event) -> void {
@@ -212,7 +169,7 @@ auto Context::handle_key_event_normal(fcitx::KeyEvent& event) -> void {
             break;
         }
         // do not enter to command mode while typing
-        if(!is_empty() || !to_kana.empty()) {
+        if(!chains.empty() || !to_kana.empty()) {
             break;
         }
         command_mode_context.emplace();
@@ -229,10 +186,10 @@ auto Context::handle_key_event_normal(fcitx::KeyEvent& event) -> void {
         if(!context.inputPanel().candidateList() && action != CandidateNext) {
             break;
         }
-        if(is_empty()) {
+        if(chains.empty()) {
             break;
         }
-        make_branch_chain();
+        chains.reset({get_current_chain()});
         auto& chain = get_current_chain();
 
         // get candidate list
@@ -302,9 +259,10 @@ auto Context::handle_key_event_normal(fcitx::KeyEvent& event) -> void {
             apply_candidates();
             goto end;
         }
-        if(is_empty()) {
+        if(chains.empty()) {
             break;
         }
+        chains.reset({get_current_chain()});
         auto& chain = get_current_chain();
 
         auto& word = chain.back();
@@ -325,11 +283,6 @@ auto Context::handle_key_event_normal(fcitx::KeyEvent& event) -> void {
         chain  = translate_wordchain(chain, true)[0];
         cursor = chain.size() - 1;
 
-        // chain may be empty
-        if(chain.empty()) {
-            reset();
-        }
-
         apply_candidates();
         goto end;
     } while(0);
@@ -340,16 +293,12 @@ auto Context::handle_key_event_normal(fcitx::KeyEvent& event) -> void {
         if(!action) {
             break;
         }
-        if(is_empty()) {
+        if(chains.empty()) {
             break;
         }
 
-        translation_changed = true;
-
-        if(chain_changed) {
+        if(chains.get_data_size() < 2) {
             chains.reset(translate_wordchain(get_current_chain(), false));
-            cursor        = get_current_chain().size() - 1;
-            chain_changed = false;
         }
         if(!is_candidate_list_for(context, &chains)) {
             context.inputPanel().setCandidateList(std::make_unique<CandidateList>(&chains, share.candidate_page_size));
@@ -361,9 +310,11 @@ auto Context::handle_key_event_normal(fcitx::KeyEvent& event) -> void {
             candidate_list->toCursorMovable()->prevCandidate();
         }
         context.updateUserInterface(fcitx::UserInterfaceComponent::InputPanel);
-        for(auto& word : get_current_chain()) {
+        auto& chain = get_current_chain();
+        for(auto& word : chain) {
             word.protection = ProtectionLevel::PreserveTranslation;
         }
+        cursor = chain.size() - 1;
         goto end;
     } while(0);
 
@@ -372,7 +323,7 @@ auto Context::handle_key_event_normal(fcitx::KeyEvent& event) -> void {
         if(!share.key_config.match(Commit, event)) {
             break;
         }
-        if(is_empty()) {
+        if(chains.empty()) {
             if(to_kana.empty()) {
                 break;
             }
@@ -382,7 +333,7 @@ auto Context::handle_key_event_normal(fcitx::KeyEvent& event) -> void {
         }
 
         commit_wordchain();
-        reset();
+        chains.clear();
         apply_candidates();
         goto end;
     } while(0);
@@ -393,9 +344,10 @@ auto Context::handle_key_event_normal(fcitx::KeyEvent& event) -> void {
         if(!action) {
             break;
         }
-        if(is_empty()) {
+        if(chains.empty()) {
             break;
         }
+        chains.reset({get_current_chain()});
         const auto& chain = get_current_chain();
 
         const auto forward    = action == WordNext;
@@ -417,10 +369,10 @@ auto Context::handle_key_event_normal(fcitx::KeyEvent& event) -> void {
         if(!action) {
             break;
         }
-        if(is_empty()) {
+        if(chains.empty()) {
             break;
         }
-        make_branch_chain();
+        chains.reset({get_current_chain()});
         auto& chain = get_current_chain();
 
         const auto left   = action == SplitWordLeft;
@@ -446,9 +398,8 @@ auto Context::handle_key_event_normal(fcitx::KeyEvent& event) -> void {
         a.protection = ProtectionLevel::PreserveSeparation;
         b.protection = ProtectionLevel::PreserveSeparation;
 
-        chain         = translate_wordchain(chain, true)[0];
-        cursor        = std::min(cursor, chain.size() - 1); // TODO: retrieve correct cursor position
-        chain_changed = true;
+        chain  = translate_wordchain(chain, true)[0];
+        cursor = std::min(cursor, chain.size() - 1); // TODO: retrieve correct cursor position
         apply_candidates();
         goto end;
     } while(0);
@@ -459,10 +410,10 @@ auto Context::handle_key_event_normal(fcitx::KeyEvent& event) -> void {
         if(!action) {
             break;
         }
-        if(is_empty()) {
+        if(chains.empty()) {
             break;
         }
-        make_branch_chain();
+        chains.reset({get_current_chain()});
         auto& chain = get_current_chain();
 
         const auto left        = share.key_config.match(MergeWordsLeft, event);
@@ -496,10 +447,10 @@ auto Context::handle_key_event_normal(fcitx::KeyEvent& event) -> void {
         if(!action) {
             break;
         }
-        if(is_empty()) {
+        if(chains.empty()) {
             break;
         }
-        make_branch_chain();
+        chains.reset({get_current_chain()});
         auto& chain = get_current_chain();
 
         const auto target_index = int(cursor) + (action == TakeFromLeft || action == GiveToLeft ? -1 : 1);
@@ -540,9 +491,8 @@ auto Context::handle_key_event_normal(fcitx::KeyEvent& event) -> void {
         word.protection   = ProtectionLevel::PreserveSeparation;
         target.protection = ProtectionLevel::PreserveSeparation;
 
-        chain         = translate_wordchain(chain, true)[0];
-        cursor        = std::min(cursor, chain.size() - 1); // TODO: retrieve correct cursor position
-        chain_changed = true;
+        chain  = translate_wordchain(chain, true)[0];
+        cursor = std::min(cursor, chain.size() - 1); // TODO: retrieve correct cursor position
         apply_candidates();
         goto end;
     } while(0);
@@ -552,10 +502,10 @@ auto Context::handle_key_event_normal(fcitx::KeyEvent& event) -> void {
         if(!share.key_config.match(Actions::ConvertKatakana, event)) {
             break;
         }
-        if(is_empty()) {
+        if(chains.empty()) {
             break;
         }
-        make_branch_chain();
+        chains.reset({get_current_chain()});
         auto& chain = get_current_chain();
 
         auto& word = chain[cursor];
@@ -582,12 +532,11 @@ auto Context::handle_key_event_normal(fcitx::KeyEvent& event) -> void {
         if(!c8) {
             break;
         }
-        if(!is_empty()) {
+        if(!chains.empty()) {
+            chains.reset({get_current_chain()});
             auto& chain = get_current_chain();
-            chain       = translate_wordchain(chain, true)[0];
             cursor      = chain.size() - 1;
         }
-        merge_branch_chains();
 
         to_kana += *c8;
         auto filter_result = romaji_index.filter(to_kana);
@@ -603,7 +552,7 @@ auto Context::handle_key_event_normal(fcitx::KeyEvent& event) -> void {
         apply_candidates();
         if(auto data = filter_result.get<RomajiIndex::ExactOne>()) {
             auto& exact = *data->result;
-            if(is_empty()) {
+            if(chains.empty()) {
                 auto word = Word::from_raw(std::move(exact.kana));
                 chains.reset({WordChain{word}});
             } else {
@@ -611,10 +560,10 @@ auto Context::handle_key_event_normal(fcitx::KeyEvent& event) -> void {
                 auto  word  = &chain.back();
                 // is the last word is not modifiable, we have to append new one
                 if(word->protection != ProtectionLevel::None) {
-                    word = &chain.emplace_back();
+                    word = &chain.emplace_back(Word::from_raw(exact.kana));
+                } else {
+                    word->raw() += exact.kana;
                 }
-                word->raw() += exact.kana;
-                chain_changed = true;
             }
 
             auto& chain = get_current_chain();
@@ -638,11 +587,11 @@ end:
         event.filterAndAccept();
         panel.setClientPreedit(build_preedit_text());
         context.updatePreedit();
-    } else if(!is_empty()) {
+    } else if(!chains.empty()) {
         event.filterAndAccept();
     }
 
-    if(is_empty()) {
+    if(chains.empty()) {
         context.inputPanel().setCandidateList(nullptr);
         context.updateUserInterface(fcitx::UserInterfaceComponent::InputPanel);
     } else {
@@ -665,9 +614,9 @@ auto Context::handle_deactivate_normal() -> void {
     context.inputPanel().reset();
     context.updatePreedit();
     context.updateUserInterface(fcitx::UserInterfaceComponent::InputPanel);
-    if(!is_empty()) {
+    if(!chains.empty()) {
         commit_wordchain();
-        reset();
+        chains.clear();
     }
     if(!to_kana.empty()) {
         context.commitString(to_kana);
