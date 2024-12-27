@@ -582,6 +582,11 @@ auto Context::handle_key_event_normal(fcitx::KeyEvent& event) -> void {
         if(!c8) {
             break;
         }
+        if(!is_empty()) {
+            auto& chain = get_current_chain();
+            chain       = translate_wordchain(chain, true)[0];
+            cursor      = chain.size() - 1;
+        }
         merge_branch_chains();
 
         to_kana += *c8;
