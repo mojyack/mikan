@@ -46,13 +46,6 @@ auto Context::commit_wordchain() -> void {
     to_kana.clear();
 }
 
-auto Context::translate_wordchain(const WordChain& source, const bool best_only) -> WordChains {
-    if(chains.empty()) {
-        return WordChains();
-    }
-    return engine.convert_wordchain(source, best_only);
-}
-
 auto Context::build_preedit_text() const -> fcitx::Text {
     auto preedit = fcitx::Text();
     if(chains.empty()) {
@@ -135,7 +128,7 @@ auto Context::auto_commit() -> void {
     for(auto i = size_t(0); i <= commit_num; i += 1) {
         // we have to ensure that the following word's translations will remain the same without this word
         if(chain[on_holds].protection != ProtectionLevel::PreserveTranslation) {
-            auto copy = translate_wordchain(std::vector<Word>(chain.begin() + on_holds + 1, chain.end()), true)[0];
+            auto copy = engine.convert_wordchain(std::vector<Word>(chain.begin() + on_holds + 1, chain.end()), true)[0];
             if(copy[0].feature() != chain[on_holds + 1].feature()) {
                 // translation result will be changed
                 // but maybe we can commit this word with next one
@@ -279,7 +272,7 @@ auto Context::handle_key_event_normal(fcitx::KeyEvent& event) -> void {
             pop_back_u8(to_kana);
         }
 
-        chain = translate_wordchain(chain, true)[0];
+        chain = engine.convert_wordchain(chain, true)[0];
         if(chain.empty()) {
             chains.clear();
         } else {
@@ -301,7 +294,7 @@ auto Context::handle_key_event_normal(fcitx::KeyEvent& event) -> void {
         }
 
         if(chains.get_data_size() < 2) {
-            chains.reset(translate_wordchain(get_current_chain(), false));
+            chains.reset(engine.convert_wordchain(get_current_chain(), false));
         }
         if(!is_candidate_list_for(context, &chains)) {
             context.inputPanel().setCandidateList(std::make_unique<CandidateList>(&chains, share.candidate_page_size));
@@ -401,7 +394,7 @@ auto Context::handle_key_event_normal(fcitx::KeyEvent& event) -> void {
         a.protection = ProtectionLevel::PreserveSeparation;
         b.protection = ProtectionLevel::PreserveSeparation;
 
-        chain  = translate_wordchain(chain, true)[0];
+        chain  = engine.convert_wordchain(chain, true)[0];
         cursor = std::min(cursor, chain.size() - 1); // TODO: retrieve correct cursor position
         apply_candidates();
         goto end;
@@ -438,7 +431,7 @@ auto Context::handle_key_event_normal(fcitx::KeyEvent& event) -> void {
         chain.erase(chain.begin() + merge_index);
 
         // translate
-        chain  = translate_wordchain(chain, true)[0];
+        chain  = engine.convert_wordchain(chain, true)[0];
         cursor = std::min(cursor, chain.size() - 1); // TODO: retrieve correct cursor position
         apply_candidates();
         goto end;
@@ -494,7 +487,7 @@ auto Context::handle_key_event_normal(fcitx::KeyEvent& event) -> void {
         word.protection   = ProtectionLevel::PreserveSeparation;
         target.protection = ProtectionLevel::PreserveSeparation;
 
-        chain  = translate_wordchain(chain, true)[0];
+        chain  = engine.convert_wordchain(chain, true)[0];
         cursor = std::min(cursor, chain.size() - 1); // TODO: retrieve correct cursor position
         apply_candidates();
         goto end;
@@ -570,7 +563,7 @@ auto Context::handle_key_event_normal(fcitx::KeyEvent& event) -> void {
             }
 
             auto& chain = get_current_chain();
-            chain       = translate_wordchain(chain, true)[0];
+            chain       = engine.convert_wordchain(chain, true)[0];
             cursor      = chain.size() - 1;
             auto_commit();
 
