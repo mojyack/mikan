@@ -279,11 +279,14 @@ auto Context::handle_key_event_normal(fcitx::KeyEvent& event) -> void {
             pop_back_u8(to_kana);
         }
 
-        // translate
-        chain  = translate_wordchain(chain, true)[0];
-        cursor = chain.size() - 1;
-
+        chain = translate_wordchain(chain, true)[0];
+        if(chain.empty()) {
+            chains.clear();
+        } else {
+            cursor = chain.size() - 1;
+        }
         apply_candidates();
+
         goto end;
     } while(0);
 
