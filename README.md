@@ -50,5 +50,19 @@ mikan uses vim-inspired keybinds.
 - Slash: Enter to command mode
 
 # Command mode
-Start typing with slash('/') to enter to command mode.
-## TODO: write command usage
+Start typing with slash('/') to enter to the command mode.
+
+https://github.com/user-attachments/assets/a9df228e-c886-4379-8466-027f7803cf8d
+
+## /def
+Add a new word to a custom dictionary.    
+Usage:  
+1. Copy the converted word to the clipboard.
+2. Type /def(Space)
+3. Type the original word then Return.
+Registered words are saved in `$HOME/.cache/mikan/defines.txt`
+## /undef
+Opposite of `/def`.  
+Remove an input word from a custom dictionary.  
+## /reload
+Reload user dictionaries.
