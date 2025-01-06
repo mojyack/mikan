@@ -1,7 +1,7 @@
 # mikan
 A japanese input method engine powered by mecab
 
-https://user-images.githubusercontent.com/66899529/228751373-f00910ae-6932-439b-9258-e1c76ea9a6d8.mp4
+https://github.com/user-attachments/assets/49903b53-235e-475b-a2fc-8cd7ce664628
 
 # Dependencies
 - fcitx 5
