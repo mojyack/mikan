@@ -16,7 +16,7 @@ shared_module('mikan',
     'src/word.cpp',
   ),
   dependencies : [
-    dependency('Fcitx5Core'),
+    dependency('Fcitx5Core', version : ['>=5.1.11']),
     dependency('Fcitx5Utils'),
     cpp.find_library('mecab'),
   ],
