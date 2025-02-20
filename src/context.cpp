@@ -123,9 +123,9 @@ auto Context::auto_commit() -> void {
         return;
     }
     const auto commit_num = chain.size() - share.auto_commit_threshold + 1;
-    auto       on_holds   = size_t(0);
+    auto       on_holds   = 0uz;
     auto       commited   = false;
-    for(auto i = size_t(0); i <= commit_num; i += 1) {
+    for(auto i = 0uz; i <= commit_num; i += 1) {
         // we have to ensure that the following word's translations will remain the same without this word
         if(chain[on_holds].protection != ProtectionLevel::PreserveTranslation) {
             auto copy = engine.convert_wordchain(std::vector<Word>(chain.begin() + on_holds + 1, chain.end()), true)[0];
@@ -138,7 +138,7 @@ auto Context::auto_commit() -> void {
         }
 
         // commit words
-        for(auto i = size_t(0); i <= on_holds; i += 1) {
+        for(auto i = 0uz; i <= on_holds; i += 1) {
             commit_word(chain[0]);
             chain.erase(chain.begin());
             cursor -= 1;

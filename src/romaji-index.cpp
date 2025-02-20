@@ -39,7 +39,7 @@ auto RomajiIndex::filter(const std::string_view to_kana) -> FilterResult {
 
     auto use_cache = true;
     if(!cache_source.empty() && to_kana.size() == cache_source.size() + 1) {
-        for(auto i = size_t(0); i < cache_source.size(); i += 1) {
+        for(auto i = 0uz; i < cache_source.size(); i += 1) {
             if(cache_source[i] != to_kana[i]) {
                 use_cache = false;
                 break;
@@ -52,7 +52,7 @@ auto RomajiIndex::filter(const std::string_view to_kana) -> FilterResult {
     auto exact = (const RomajiKana*)nullptr;
     if(!use_cache) {
         cache.clear();
-        for(auto i = size_t(0); i < to_kana.size(); i += 1) {
+        for(auto i = 0uz; i < to_kana.size(); i += 1) {
             cache = search_by_nth_chara(to_kana[i], i, &exact);
             if(exact != nullptr) {
                 goto end;

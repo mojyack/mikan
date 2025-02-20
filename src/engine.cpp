@@ -38,14 +38,14 @@ auto build_raw_and_constraints(const WordChain& chain, const bool ignore_protect
 }
 
 auto load_text_dictionary(const char* const path, std::vector<ConvDef>& defs) -> bool {
-    ensure(std::filesystem::is_regular_file(path), "not a file ", path);
+    ensure(std::filesystem::is_regular_file(path), "not a file {}", path);
     auto source = std::fstream(path);
     auto line   = std::string();
     while(std::getline(source, line)) {
         const auto elms = split_strip(line, ",");
         auto       def  = ConvDef();
         if(elms.size() != 2) {
-            WARN("failed to parse line \"", line, "\" of file ", path);
+            WARN(R"(failed to parse line "{}" of file {})", line, path);
             continue;
         }
         defs.emplace_back(ConvDef{std::string(elms[0]), std::string(elms[1])});
@@ -103,12 +103,12 @@ auto Engine::parse_configuration_line(const std::string_view line) -> bool {
         } else if(value == "smart") {
             share.insert_space = InsertSpaceOptions::Smart;
         } else {
-            bail("invalid insert_space value ", value);
+            bail("invalid insert_space value {}", value);
         }
     } else if(key == "dictionaries") {
         share.dictionary_path = value;
     } else {
-        bail("unknown config name ", key);
+        bail("unknown config name {}", key);
     }
     return true;
 }
@@ -120,7 +120,7 @@ auto Engine::load_configuration() -> bool {
     auto line   = std::string();
     while(std::getline(config, line)) {
         if(!parse_configuration_line(line)) {
-            WARN("failed to process configuration ", line);
+            WARN("failed to process configuration {}", line);
         }
     }
     return true;
@@ -138,15 +138,17 @@ auto Engine::merge_dictionaries(const char* const path) const -> bool {
         load_text_dictionary(dict.data(), to_compile);
     }
 
-    auto file = std::ofstream(path);
-    for(const auto& def : to_compile) {
-        file << def.raw << ",0,0,0," << def.converted << std::endl;
+    {
+        auto file = std::ofstream(path);
+        for(const auto& def : to_compile) {
+            std::println(file, "{},0,0,0,{}", def.raw, def.converted);
+        }
     }
     return true;
 }
 
 auto Engine::compile_and_reload_user_dictionary() -> bool {
-    const auto tmpdir = build_string("/tmp/mikan-", getpid());
+    const auto tmpdir = std::format("/tmp/mikan-{}", getpid());
     std::filesystem::create_directories(tmpdir);
 
     const auto csv_path = tmpdir + "/dict.csv";
@@ -178,7 +180,7 @@ auto Engine::reload_dictionary(const char* const user_dict) -> bool {
 }
 
 auto Engine::convert_wordchain(const WordChain& source, const bool best_only, const bool ignore_protection) const -> WordChains {
-    constexpr auto N_BEST_LIMIT = size_t(30);
+    constexpr auto N_BEST_LIMIT = 30uz;
 
     auto result                   = WordChains();
     const auto [raw, constraints] = build_raw_and_constraints(source, ignore_protection);
@@ -209,7 +211,7 @@ auto Engine::convert_wordchain(const WordChain& source, const bool best_only, co
 
     // retrive protected wordchain
     for(auto& r : result) {
-        auto total_bytes = size_t(0);
+        auto total_bytes = 0uz;
         auto constraint  = constraints.cbegin();
         for(auto& word : r) {
             if(constraint == constraints.cend()) {
@@ -237,8 +239,10 @@ auto Engine::add_convert_definition(const std::string_view raw, const std::strin
     ensure(std::filesystem::is_directory(cachedir) || std::filesystem::create_directories(get_user_cache_dir()));
     const auto path = cachedir + "/defines.txt";
 
-    auto file = std::ofstream(path, std::ios_base::app);
-    file << raw << "," << converted << std::endl;
+    {
+        auto file = std::ofstream(path, std::ios_base::app);
+        std::println(file, "{},{}", raw, converted);
+    }
 
     ensure(compile_and_reload_user_dictionary());
     return true;
@@ -250,16 +254,18 @@ auto Engine::remove_convert_definition(const std::string_view raw) -> bool {
     auto defs = std::vector<ConvDef>();
     ensure(load_text_dictionary(path.data(), defs));
 
-    auto file  = std::ofstream(path, std::ios_base::out);
-    auto count = 0;
-    for(auto i = defs.begin(); i < defs.end(); i += 1) {
-        if(i->raw == raw) {
-            count += 1;
-            continue;
+    {
+        auto file  = std::ofstream(path, std::ios_base::out);
+        auto count = 0;
+        for(const auto& def : defs) {
+            if(def.raw == raw) {
+                count += 1;
+                continue;
+            }
+            std::println(file, "{},{}", def.raw, def.converted);
         }
-        file << i->raw << "," << i->converted << std::endl;
+        ensure(count > 0, "no definitions matched");
     }
-    ensure(count > 0, "no definitions matched");
     ensure(compile_and_reload_user_dictionary());
     return true;
 }
