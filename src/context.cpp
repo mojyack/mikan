@@ -22,6 +22,27 @@ auto is_candidate_list_for(fcitx::InputContext& context, const Candidates* const
     }
     return base->get_candidates() == candidates;
 }
+
+auto cursor_in_chars(const WordChain& chain, const size_t cursor) -> size_t {
+    auto count = 0uz;
+    for(auto i = 0uz; i < cursor; i += 1) {
+        count += u8tou32(chain[i].raw()).size();
+    }
+    return count;
+}
+
+auto cursor_in_words(const WordChain& chain, const size_t char_cursor) -> size_t {
+    auto cursor = 0uz;
+    auto count  = 0uz;
+    for(auto& word : chain) {
+        count += u8tou32(word.raw()).size();
+        if(count > char_cursor) {
+            return cursor;
+        }
+        cursor += 1;
+    }
+    PANIC("invalid word chain");
+}
 } // namespace
 
 auto Context::get_current_chain() -> WordChain& {
@@ -393,8 +414,11 @@ auto Context::handle_key_event_normal(fcitx::KeyEvent& event) -> void {
         a.protection = ProtectionLevel::PreserveSeparation;
         b.protection = ProtectionLevel::PreserveSeparation;
 
+        // save current cursor
+        const auto char_cursor = cursor_in_chars(chain, cursor);
+
         chain  = engine.convert_wordchain(chain, true)[0];
-        cursor = std::min(cursor, chain.size() - 1); // TODO: retrieve correct cursor position
+        cursor = cursor_in_words(chain, char_cursor);
         apply_candidates();
         goto end;
     } while(0);
@@ -419,6 +443,7 @@ auto Context::handle_key_event_normal(fcitx::KeyEvent& event) -> void {
 
         auto& a = chain[cursor].raw();
         auto& b = chain[merge_index].raw();
+        PRINT("a={}, b={}", a, b);
         // merge them
         chain[cursor].raw()      = left ? b + a : a + b;
         chain[cursor].protection = ProtectionLevel::PreserveSeparation;
@@ -429,9 +454,12 @@ auto Context::handle_key_event_normal(fcitx::KeyEvent& event) -> void {
         // remove merged word
         chain.erase(chain.begin() + merge_index);
 
+        // save current cursor
+        const auto char_cursor = cursor_in_chars(chain, cursor);
+
         // translate
         chain  = engine.convert_wordchain(chain, true)[0];
-        cursor = std::min(cursor, chain.size() - 1); // TODO: retrieve correct cursor position
+        cursor = cursor_in_words(chain, char_cursor);
         apply_candidates();
         goto end;
     } while(0);
@@ -486,8 +514,11 @@ auto Context::handle_key_event_normal(fcitx::KeyEvent& event) -> void {
         word.protection   = ProtectionLevel::PreserveSeparation;
         target.protection = ProtectionLevel::PreserveSeparation;
 
+        // save current cursor
+        const auto char_cursor = cursor_in_chars(chain, cursor);
+
         chain  = engine.convert_wordchain(chain, true)[0];
-        cursor = std::min(cursor, chain.size() - 1); // TODO: retrieve correct cursor position
+        cursor = cursor_in_words(chain, char_cursor);
         apply_candidates();
         goto end;
     } while(0);
