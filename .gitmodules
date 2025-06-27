@@ -1,9 +1,0 @@
-[submodule "submodules/cutil"]
-	path = submodules/cutil
-	url = https://github.com/mojyack/cutil.git
-[submodule "submodules/cutil-macros"]
-	path = submodules/cutil-macros
-	url = https://github.com/mojyack/cutil-macros.git
-[submodule "submodules/process-spawn-cpp"]
-	path = submodules/process-spawn-cpp
-	url = https://github.com/mojyack/process-spawn-cpp.git
