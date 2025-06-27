@@ -194,20 +194,19 @@ auto Context::handle_key_event_normal(fcitx::KeyEvent& event) -> void {
                 dics.emplace_back(dic.get());
             }
 
-            auto new_word = Word::from_dictionaries(dics, word);
+            auto  new_word = Word::from_dictionaries(dics, word);
+            auto& cands    = new_word.candidates;
+            if(cands.size() < 2) {
+                // the word does not have candidates,
+                // but we want to display candidate list anyway.
+                cands.emplace_back(cands[0]);
+            }
 
-            const auto insert_candidate = [&new_word](const size_t pos, const std::string& str) {
-                auto& arr = new_word.candidates;
-                if(const auto iter = std::ranges::find(arr, str); iter == arr.end()) {
-                    arr.erase(iter);
-                }
-                arr.insert(arr.begin() + pos, std::string(str));
-            };
             // insert current feature to top
-            insert_candidate(2, word.feature());
+            cands.insert(cands.begin() + 2, word.feature());
             // then hiragana
             if(word.raw() != word.feature()) {
-                insert_candidate(3, word.raw());
+                cands.insert(cands.begin() + 3, word.raw());
             }
             new_word.protection = ProtectionLevel::PreserveTranslation;
             word                = std::move(new_word);
