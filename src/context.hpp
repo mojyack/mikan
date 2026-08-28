@@ -27,7 +27,6 @@ class Context final : public fcitx::InputContextProperty {
 
     auto get_current_chain() -> WordChain&;
     auto get_current_chain() const -> const WordChain&;
-    auto commit_word(const Word& word) -> void;
     auto commit_wordchain() -> void;
     auto build_preedit_text() const -> fcitx::Text;
     auto build_kana_text() const -> std::string;

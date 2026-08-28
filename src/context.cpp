@@ -54,17 +54,15 @@ auto Context::get_current_chain() const -> const WordChain& {
     return ((Context*)this)->get_current_chain();
 }
 
-auto Context::commit_word(const Word& word) -> void {
-    context.commitString(word.feature());
-}
-
 auto Context::commit_wordchain() -> void {
     chains.reset({get_current_chain()});
+    auto text = std::string();
     for(const auto& word : get_current_chain()) {
-        commit_word(word);
+        text += word.feature();
     }
-    context.commitString(to_kana);
+    text += to_kana;
     to_kana.clear();
+    context.commitString(text);
 }
 
 auto Context::build_preedit_text() const -> fcitx::Text {
@@ -146,6 +144,7 @@ auto Context::auto_commit() -> void {
     const auto commit_num = chain.size() - share.auto_commit_threshold + 1;
     auto       on_holds   = 0uz;
     auto       commited   = false;
+    auto       text       = std::string();
     for(auto i = 0uz; i <= commit_num; i += 1) {
         // we have to ensure that the following word's translations will remain the same without this word
         if(chain[on_holds].protection != ProtectionLevel::PreserveTranslation) {
@@ -160,7 +159,7 @@ auto Context::auto_commit() -> void {
 
         // commit words
         for(auto i = 0uz; i <= on_holds; i += 1) {
-            commit_word(chain[0]);
+            text += chain[0].feature();
             chain.erase(chain.begin());
             cursor -= 1;
         }
@@ -168,6 +167,7 @@ auto Context::auto_commit() -> void {
         commited = true;
     }
     if(commited) {
+        context.commitString(text);
         apply_candidates();
     }
 }
